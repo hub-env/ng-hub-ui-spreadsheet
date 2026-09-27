@@ -52,7 +52,10 @@ cell padding are inherited rather than restated, so there is one place to change
 The component carries its own styles. Nothing needs importing for it to render.
 
 To theme it, set the tokens on any ancestor — `:root` for the whole application, a wrapper class
-for one screen, or the element itself for one sheet:
+for one screen, or the element itself for one sheet. Every token below is _read_ where it is used,
+with its fallback chain inline, so an ancestor's value is the first thing the chain finds. (Until
+22.1.0 they were declared on the host element instead, which meant a declaration on the element beat
+anything inherited and theming from an ancestor was quietly ignored.)
 
 ```scss
 :root {
@@ -63,6 +66,21 @@ for one screen, or the element itself for one sheet:
 ```html
 <hub-spreadsheet style="--hub-spreadsheet-max-block-size: 60vh" [rows]="rows()" ... />
 ```
+
+Or through the mixin, which is the same declarations written once:
+
+```scss
+@use 'ng-hub-ui-spreadsheet/styles' as sheet;
+
+.invoice-lines {
+	@include sheet.hub-spreadsheet-theme($cursor-color: #6f42c1, $max-block-size: 60vh);
+}
+```
+
+Every parameter is optional and named after the token it sets — `$cursor-color` for
+`--hub-spreadsheet-cursor-color` — so the table below doubles as its reference. The two per-cell
+tokens the component writes itself, `--hub-spreadsheet-cell-edge-inline` and
+`--hub-spreadsheet-cell-edge-block`, have no parameter: they are state, not theming.
 
 ---
 
@@ -100,14 +118,14 @@ grows to fit its rows, and the frozen header has nothing to stay still against.
 A table has no cursor, so these are the sheet's own and fall back to the design system's accent
 rather than to a table token.
 
-| Variable                         | Falls back to                         | What it does                                         |
-| -------------------------------- | ------------------------------------- | ---------------------------------------------------- |
-| `--hub-spreadsheet-cell-line-height` | `1.5em` | The line a row of text stands on; holds a cell's height while its content is away in an editor. |
+| Variable                             | Falls back to                         | What it does                                                                                                                                   |
+| ------------------------------------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--hub-spreadsheet-cell-line-height` | `1.5em`                               | The line a row of text stands on; holds a cell's height while its content is away in an editor.                                                |
 | `--hub-spreadsheet-cell-edge-inline` | `var(--hub-spreadsheet-border-width)` | Thickness of a cell's trailing border, re-declared per cell so an editor laid over it covers the border exactly. Plumbing, not a theming hook. |
-| `--hub-spreadsheet-cell-edge-block` | `var(--hub-spreadsheet-border-width)` | The same for the bottom border. |
-| `--hub-spreadsheet-cursor-color` | `--hub-sys-color-primary` → `#0d6efd` | Outline of the active cell, and the editor's border. |
-| `--hub-spreadsheet-cursor-width` | `2px`                                 | Thickness of that outline.                           |
-| `--hub-spreadsheet-selection-bg` | the cursor colour at 12 %             | Tint over every cell of the selected range.          |
+| `--hub-spreadsheet-cell-edge-block`  | `var(--hub-spreadsheet-border-width)` | The same for the bottom border.                                                                                                                |
+| `--hub-spreadsheet-cursor-color`     | `--hub-sys-color-primary` → `#0d6efd` | Outline of the active cell, and the editor's border.                                                                                           |
+| `--hub-spreadsheet-cursor-width`     | `2px`                                 | Thickness of that outline.                                                                                                                     |
+| `--hub-spreadsheet-selection-bg`     | the cursor colour at 12 %             | Tint over every cell of the selected range.                                                                                                    |
 
 The cursor is drawn as an overlay rather than as a border, so moving it never shifts the cells
 around it by the width of a line.
@@ -116,21 +134,21 @@ around it by the width of a line.
 
 ## The structural menu
 
-| Variable                                | Falls back to                      | What it does                        |
-| --------------------------------------- | ---------------------------------- | ----------------------------------- |
-| `--hub-spreadsheet-suggestions-bg` | `var(--hub-spreadsheet-menu-bg)` | Background of the formula suggestions. |
-| `--hub-spreadsheet-suggestions-border-color` | `var(--hub-spreadsheet-menu-border-color)` | Their border. |
-| `--hub-spreadsheet-suggestion-on-bg` | `var(--hub-spreadsheet-selection-bg)` | The suggestion the keyboard is on. |
-| `--hub-spreadsheet-alias-bg` | the cursor colour at 12 % | Background of the alias chip on a header while a formula is being written. |
-| `--hub-spreadsheet-alias-color` | `var(--hub-spreadsheet-cursor-color)` | Its text. |
-| `--hub-spreadsheet-menu-bg`             | `--hub-sys-color-surface` → `#fff` | Background of the menu.             |
-| `--hub-spreadsheet-menu-color`          | the sheet's text colour            | Its text.                           |
-| `--hub-spreadsheet-menu-border-color`   | the sheet's border colour          | Its outline.                        |
-| `--hub-spreadsheet-menu-radius`         | `--hub-sys-radius-sm` → `0.25rem`  | Its rounding.                       |
-| `--hub-spreadsheet-menu-shadow`         | `0 6px 20px rgb(0 0 0 / 18%)`      | Shadow that lifts it off the sheet. |
-| `--hub-spreadsheet-menu-item-padding-x` | `0.85rem`                          | Horizontal padding of an entry.     |
-| `--hub-spreadsheet-menu-item-padding-y` | `0.4rem`                           | Vertical padding of an entry.       |
-| `--hub-spreadsheet-menu-item-bg-hover`  | the selection tint                 | The entry under the pointer.        |
+| Variable                                     | Falls back to                              | What it does                                                               |
+| -------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------- |
+| `--hub-spreadsheet-suggestions-bg`           | `var(--hub-spreadsheet-menu-bg)`           | Background of the formula suggestions.                                     |
+| `--hub-spreadsheet-suggestions-border-color` | `var(--hub-spreadsheet-menu-border-color)` | Their border.                                                              |
+| `--hub-spreadsheet-suggestion-on-bg`         | `var(--hub-spreadsheet-selection-bg)`      | The suggestion the keyboard is on.                                         |
+| `--hub-spreadsheet-alias-bg`                 | the cursor colour at 12 %                  | Background of the alias chip on a header while a formula is being written. |
+| `--hub-spreadsheet-alias-color`              | `var(--hub-spreadsheet-cursor-color)`      | Its text.                                                                  |
+| `--hub-spreadsheet-menu-bg`                  | `--hub-sys-color-surface` → `#fff`         | Background of the menu.                                                    |
+| `--hub-spreadsheet-menu-color`               | the sheet's text colour                    | Its text.                                                                  |
+| `--hub-spreadsheet-menu-border-color`        | the sheet's border colour                  | Its outline.                                                               |
+| `--hub-spreadsheet-menu-radius`              | `--hub-sys-radius-sm` → `0.25rem`          | Its rounding.                                                              |
+| `--hub-spreadsheet-menu-shadow`              | `0 6px 20px rgb(0 0 0 / 18%)`              | Shadow that lifts it off the sheet.                                        |
+| `--hub-spreadsheet-menu-item-padding-x`      | `0.85rem`                                  | Horizontal padding of an entry.                                            |
+| `--hub-spreadsheet-menu-item-padding-y`      | `0.4rem`                                   | Vertical padding of an entry.                                              |
+| `--hub-spreadsheet-menu-item-bg-hover`       | the selection tint                         | The entry under the pointer.                                               |
 
 The menu appears on right-click when `contextMenu` is set, and only ever lists what `structure`
 allows. It is never opened empty.
@@ -158,15 +176,15 @@ The grip only appears when `fillHandle` is set and the sheet is not read-only.
 
 ## Column hints
 
-| Variable                                | Falls back to                      | What it does                             |
-| --------------------------------------- | ---------------------------------- | ---------------------------------------- |
-| `--hub-spreadsheet-affordance-color` | `--hub-select-arrow-color` → `--hub-sys-text-muted` | Colour of the caret or calendar mark on a cell that opens onto a list or a date. |
-| `--hub-spreadsheet-affordance-size` | `--hub-select-arrow-size` → `5px` | How big that mark is. |
-| `--hub-spreadsheet-affordance-gap` | `--hub-select-arrow-gap` → `0.5rem` | How far it is held off the cell's trailing edge, and the width of its hit area. |
-| `--hub-spreadsheet-affordance-field-border` | `--hub-input-border-width` → `1px` | The frame of the field that opens over the cell; the mark lines up with its content edge. |
-| `--hub-spreadsheet-placeholder-color`   | `--hub-sys-text-muted` → `#6a737b` | Colour of a column's `placeholder` hint. |
-| `--hub-spreadsheet-placeholder-opacity` | `0.65`                             | How strongly it shows on hover.          |
-| `--hub-spreadsheet-placeholder-transition` | `--hub-sys-transition-fast` → `all 0.15s ease-in-out` | How the hint fades in and out. |
+| Variable                                    | Falls back to                                         | What it does                                                                              |
+| ------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `--hub-spreadsheet-affordance-color`        | `--hub-select-arrow-color` → `--hub-sys-text-muted`   | Colour of the caret or calendar mark on a cell that opens onto a list or a date.          |
+| `--hub-spreadsheet-affordance-size`         | `--hub-select-arrow-size` → `5px`                     | How big that mark is.                                                                     |
+| `--hub-spreadsheet-affordance-gap`          | `--hub-select-arrow-gap` → `0.5rem`                   | How far it is held off the cell's trailing edge, and the width of its hit area.           |
+| `--hub-spreadsheet-affordance-field-border` | `--hub-input-border-width` → `1px`                    | The frame of the field that opens over the cell; the mark lines up with its content edge. |
+| `--hub-spreadsheet-placeholder-color`       | `--hub-sys-text-muted` → `#6a737b`                    | Colour of a column's `placeholder` hint.                                                  |
+| `--hub-spreadsheet-placeholder-opacity`     | `0.65`                                                | How strongly it shows on hover.                                                           |
+| `--hub-spreadsheet-placeholder-transition`  | `--hub-sys-transition-fast` → `all 0.15s ease-in-out` | How the hint fades in and out.                                                            |
 
 A hint appears only in an empty cell and only while the pointer rests on it. Shown always, a
 column of hints reads as a column of content, and a reader scanning for what is filled in would
@@ -183,20 +201,35 @@ have to look twice at every row.
 
 ## The editor
 
-| Variable                          | Falls back to                        | What it does                                          |
-| --------------------------------- | ------------------------------------ | ----------------------------------------------------- |
-| `--hub-spreadsheet-editor-bg`     | `var(--hub-spreadsheet-bg)`          | Background of the field that replaces a cell.         |
-| `--hub-spreadsheet-editor-color`  | `var(--hub-spreadsheet-color)`       | Its text colour.                                      |
-| `--hub-spreadsheet-editor-field-bg` | `transparent` | Background of a control supplied by the host, inside the cell. |
-| `--hub-spreadsheet-editor-field-border-color` | `transparent` | Its border colour; transparent keeps the box's geometry, so nothing shifts. |
-| `--hub-spreadsheet-editor-field-border-radius` | `0` | Its corners, square so the cell's mark is the only frame. |
-| `--hub-spreadsheet-editor-field-focus-shadow` | `none` | Its focus ring, dropped for the same reason. |
-| `--hub-spreadsheet-invalid-color` | `--hub-sys-color-danger` → `#b3261e` | Border and text when what was typed is not a value.   |
-| `--hub-spreadsheet-invalid-border-width` | `1px` | Thickness of the ring that marks an invalid cell, drawn inside it so nothing shifts. |
-| `--hub-spreadsheet-invalid-bg`    | the invalid colour at 10 %           | Tint of the cell while it holds something unreadable. |
+| Variable                                       | Falls back to                        | What it does                                                                         |
+| ---------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
+| `--hub-spreadsheet-editor-bg`                  | `var(--hub-spreadsheet-bg)`          | Background of the field that replaces a cell.                                        |
+| `--hub-spreadsheet-editor-color`               | `var(--hub-spreadsheet-color)`       | Its text colour.                                                                     |
+| `--hub-spreadsheet-editor-field-bg`            | `transparent`                        | Background of a control supplied by the host, inside the cell.                       |
+| `--hub-spreadsheet-editor-field-border-color`  | `transparent`                        | Its border colour; transparent keeps the box's geometry, so nothing shifts.          |
+| `--hub-spreadsheet-editor-field-border-radius` | `0`                                  | Its corners, square so the cell's mark is the only frame.                            |
+| `--hub-spreadsheet-editor-field-focus-shadow`  | `none`                               | Its focus ring, dropped for the same reason.                                         |
+| `--hub-spreadsheet-invalid-color`              | `--hub-sys-color-danger` → `#b3261e` | Border and text when what was typed is not a value.                                  |
+| `--hub-spreadsheet-invalid-border-width`       | `1px`                                | Thickness of the ring that marks an invalid cell, drawn inside it so nothing shifts. |
+| `--hub-spreadsheet-invalid-bg`                 | the invalid colour at 10 %           | Tint of the cell while it holds something unreadable.                                |
 
 An editor holding text that does not parse stays open and turns red rather than closing and
 discarding what the reader wrote.
+
+### Colouring the formula
+
+While a formula is being written, the sheet draws it twice: the field holds the text, and a copy
+behind the field — the one the reader actually sees — colours each piece by what it is, so the
+grammar of an expression can be read at a glance instead of parsed in the head. A function, a
+column alias, a cell reference and a quoted string each get their own colour; numbers, booleans and
+operators keep the sheet's text colour, and the punctuation steps back.
+
+| Variable                                    | Falls back to                        | What it colours                                            |
+| ------------------------------------------- | ------------------------------------ | ---------------------------------------------------------- |
+| `--hub-spreadsheet-token-function-color`    | `--hub-sys-color-primary` → `#0d6efd`| A function name: `SUM(`, `ROUND(`.                          |
+| `--hub-spreadsheet-token-column-color`      | `--hub-sys-color-info` → `#0a7ea4`   | A column alias: `[units]`, `[total:]`.                      |
+| `--hub-spreadsheet-token-coordinate-color`  | `--hub-sys-color-success` → `#1a7f37`| A cell reference: `B3`, `B3:D7`.                            |
+| `--hub-spreadsheet-token-text-color`        | `--hub-sys-color-danger` → `#b3261e` | A quoted string: `"IVA"`.                                   |
 
 ---
 

@@ -77,14 +77,14 @@ That split is deliberate. It is what lets the same component serve an invoice, a
 
 - **Two identities per column.** A stable alias that everything stored points at, and a visible header you can rewrite whenever you like without breaking a single reference.
 - **Excel's editing keyboard**, down to the details: typing replaces, `F2` keeps, `Enter` commits and drops, `Tab` commits and advances, `Escape` reverts.
-- **Rectangular selection** by shift-arrow, shift-click or dragging.
+- **Rectangular selection** by shift-arrow, shift-click or dragging, and **more than one block at a time** with `Ctrl` held. `Delete` empties every block; a copy happens when the blocks line up and is refused when they do not, exactly as a spreadsheet refuses it.
 - **A clipboard that actually round-trips with Excel.** Both flavours written, both read, with the raw number recovered from the HTML so a figure copied in a locale that writes `1.234,56` arrives as `1234.56`.
 - **Frozen panes**, counted from the edge the way Excel freezes them.
 - **Five save states per cell**, drawn as a bar rather than a badge.
 - **Structured output by alias**: `{ price: 12, units: 3 }`, not a grid of coordinates.
 - **Real grid semantics** — `role="grid"`, row and column indices, `aria-selected`, a roving tab stop — so a screen reader can navigate it.
 - **Input-method safe.** The `Enter` that confirms a Chinese, Japanese or Korean character does not commit the cell.
-- **63 CSS variables** that inherit from `--hub-table-*` before falling back to the design system.
+- **67 CSS variables** that inherit from `--hub-table-*` before falling back to the design system.
 - **Out to a real `.xlsx` and back**, with figures as figures and dates as dates — and to CSV, with the separator the reader's locale expects. The zip and the XML are written here, so exporting brings no dependency.
 - **No `@angular/cdk`.** The grid primitives are in `ng-hub-ui-utils`.
 
@@ -289,6 +289,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `readonly`           | `boolean`                                 | `false`          | Turns off every editor, whatever the cells say.                                   |
 | `formulas`           | `boolean`                                 | `false`          | Reads a cell that starts with `=` as a formula. See below.                        |
 | `editOn`             | `'click' \| 'double-click'`               | `'double-click'` | What opens the editor with the pointer. Typing opens it either way.               |
+| `direction`          | `'auto' \| 'ltr' \| 'rtl'`                | `'auto'`         | Which way the sheet runs. `auto` follows the page; the other two force it.         |
 | `frozenColumns`      | `number`                                  | `0`              | How many columns stay pinned to the leading edge.                                 |
 | `frozenRows`         | `number`                                  | `0`              | How many rows stay pinned below the header.                                       |
 | `virtual`            | `boolean`                                 | `false`          | Draws only the rows in view. Gives the sheet a height; see below.                 |
@@ -298,6 +299,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `retiredColumnKeys`  | `readonly string[]`                       | `[]`             | Aliases of deleted columns, so a new one never reuses them.                       |
 | `contextMenu`        | `boolean`                                 | `false`          | Offers the structural changes on right-click.                                     |
 | `mergeable`          | `boolean`                                 | `false`          | Offers putting cells together, and taking them apart, in that menu.               |
+| `disjointSelection`  | `boolean`                                 | `true`           | Whether `Ctrl`-clicking adds a second block instead of starting a new selection.  |
 | `fillHandle`         | `boolean`                                 | `false`          | Draws the grip at the corner of the selection.                                    |
 | `canUndo`            | `boolean`                                 | `false`          | Whether `Ctrl+Z` has anything to ask for. The history belongs to the host.        |
 | `canRedo`            | `boolean`                                 | `false`          | The same for `Ctrl+Shift+Z` and `Ctrl+Y`.                                         |
@@ -308,20 +310,21 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 
 ### Outputs
 
-| Output             | Payload                         | Fires when                                                              |
-| ------------------ | ------------------------------- | ----------------------------------------------------------------------- |
-| `commit`           | `HubSpreadsheetCommit<TRow>`    | A cell took a new value, and it differs from the old one.               |
-| `pasted`           | `HubSpreadsheetPaste<TRow>`     | A block was pasted.                                                     |
-| `filled`           | `HubSpreadsheetPaste<TRow>`     | The fill handle was dragged and released.                               |
-| `cleared`          | `HubSpreadsheetCellRef<TRow>[]` | `Delete` was pressed over a selection.                                  |
-| `selectionChange`  | `HubGridRange \| null`          | The selected rectangle changed.                                         |
-| `insertRequested`  | `HubSpreadsheetInsertRequest`   | The reader asked to add rows or columns.                                |
-| `deleteRequested`  | `HubSpreadsheetDeleteRequest`   | The reader asked to remove rows or columns.                             |
-| `undoRequested`    | `void`                          | `Ctrl+Z`. The sheet undoes nothing itself.                              |
-| `redoRequested`    | `void`                          | `Ctrl+Shift+Z` or `Ctrl+Y`.                                             |
-| `columnMoved`      | `{ from, to, key, keys }`       | A header was dropped. `keys` arrives already reordered.                 |
-| `mergeRequested`   | `HubSpreadsheetMergeRequest`    | The reader asked to put a selection together. Carries what it swallows. |
-| `unmergeRequested` | `readonly HubGridCoords[]`      | The reader asked to take apart the blocks their selection touches.      |
+| Output                  | Payload                         | Fires when                                                                               |
+| ----------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
+| `commit`                | `HubSpreadsheetCommit<TRow>`    | A cell took a new value, and it differs from the old one.                                |
+| `pasted`                | `HubSpreadsheetPaste<TRow>`     | A block was pasted.                                                                      |
+| `filled`                | `HubSpreadsheetPaste<TRow>`     | The fill handle was dragged and released.                                                |
+| `cleared`               | `HubSpreadsheetCellRef<TRow>[]` | `Delete` was pressed over a selection.                                                   |
+| `selectionChange`       | `HubGridRange \| null`          | The selected rectangle changed.                                                          |
+| `selectionRangesChange` | `readonly HubGridRange[]`       | Every rectangle of the selection, whenever it changes. One entry unless blocks were held with `Ctrl`. |
+| `insertRequested`       | `HubSpreadsheetInsertRequest`   | The reader asked to add rows or columns.                                                 |
+| `deleteRequested`       | `HubSpreadsheetDeleteRequest`   | The reader asked to remove rows or columns.                                              |
+| `undoRequested`         | `void`                          | `Ctrl+Z`. The sheet undoes nothing itself.                                               |
+| `redoRequested`         | `void`                          | `Ctrl+Shift+Z` or `Ctrl+Y`.                                                              |
+| `columnMoved`           | `{ from, to, key, keys }`       | A header was dropped. `keys` arrives already reordered.                                  |
+| `mergeRequested`        | `HubSpreadsheetMergeRequest`    | The reader asked to put a selection together. Carries what it swallows.                  |
+| `unmergeRequested`      | `readonly HubGridCoords[]`      | The reader asked to take apart the blocks their selection touches.                       |
 
 ### Helpers
 
@@ -542,6 +545,24 @@ Theme it by setting tokens on any ancestor:
 ```
 
 Each value falls through `--hub-table-*` before `--hub-sys-*`, so a project that has themed its tables with `ng-hub-ui-paginable` gets its sheets dressed to match without setting anything.
+
+Or in one include, which is the same thing said in Sass:
+
+```scss
+@use 'ng-hub-ui-spreadsheet/styles' as sheet;
+
+.invoice-lines {
+	@include sheet.hub-spreadsheet-theme(
+		$cursor-color: #6f42c1,
+		$cell-padding-y: 0.125rem,
+		$cell-line-height: 1.2,
+		$max-block-size: 60vh
+	);
+}
+```
+
+Every parameter is optional and only what you pass is emitted, so the rest keep falling through the
+chain. Reach for it for what a table theme does not already cover, rather than to restate it.
 
 Full catalogue: [`docs/css-variables-reference.md`](./docs/css-variables-reference.md).
 

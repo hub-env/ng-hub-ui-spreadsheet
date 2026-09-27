@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import {
 	ChangeDetectionStrategy,
 	Component,
+	DestroyRef,
 	ElementRef,
 	Injector,
 	afterNextRender,
@@ -23,17 +24,22 @@ import {
 	HubGridRange,
 	HubGridSpan,
 	HubGridWindow,
+	addGridRange,
 	anchorOf,
 	buildSpanMap,
 	clampGridRange,
+	clampGridSelection,
 	coversRange,
-	isCovered,
 	gridCellTabIndex,
 	gridRangeBetween,
+	gridRangeCells,
+	gridSelectionCells,
+	gridSelectionTable,
 	gridWindow,
 	growWindowToSpans,
-	gridRangeCells,
+	isCovered,
 	isWithinGridRange,
+	isWithinGridSelection,
 	moveGridFocus,
 	resolveGridEdge,
 	resolveGridIntent,
@@ -51,7 +57,8 @@ import { evaluateSheet } from '../../formulas/formula-sheet';
 import { isFormula } from '../../formulas/formula-parser';
 import { FORMULA_ERRORS, formulaErrorText } from '../../formulas/formula-errors';
 import { HubFormulaSuggestion, applySuggestion, formulaFragment, suggestFormula } from '../../formulas/formula-suggest';
-import { columnLabel } from '../../formulas/formula-coordinates';
+import { HubFormulaToken, tokenizeFormula } from '../../formulas/formula-tokens';
+import { columnLabel, formatCoordinate } from '../../formulas/formula-coordinates';
 import { HubSpreadsheetControlDirective } from '../../editors/editor-adapter.directive';
 import { HUB_SPREADSHEET_CONTROLS } from '../../editors/editor-adapter.token';
 import { HubSpreadsheetControlConfig } from '../../editors/editor-adapter.types';
@@ -124,9 +131,11 @@ const FIRST_PASS_ROW_HEIGHT = 32;
 		 */
 		ngSkipHydration: 'true',
 		class: 'hub-spreadsheet',
+		'[attr.dir]': 'forcedDirection()',
 		'[class.hub-spreadsheet--readonly]': 'readonly()',
 		'[class.hub-spreadsheet--editing]': 'editing()',
 		'[class.hub-spreadsheet--virtual]': 'virtual()',
+		'[class.hub-spreadsheet--rtl]': 'rtl()',
 		'(document:mouseup)': 'endDrag()',
 		'(document:mousemove)': 'onPointerMove($event)',
 		'(document:mousedown)': 'closeMenu()',
@@ -136,6 +145,58 @@ const FIRST_PASS_ROW_HEIGHT = 32;
 export class HubSpreadsheetComponent<TRow> {
 	readonly #host = inject<ElementRef<HTMLElement>>(ElementRef);
 	readonly #injector = inject(Injector);
+	readonly #destroyRef = inject(DestroyRef);
+
+	constructor() {
+		afterNextRender(
+			() => {
+				// The list of suggestions hangs in the window rather than in the sheet, which is how
+				// it escapes every scroll area and every `overflow: hidden` between the cell and the
+				// page. The price is that it no longer travels with the sheet, so anything that
+				// scrolls — or a resized window — puts it back on its cell. Scroll is caught in the
+				// capture phase, because the thing that scrolls the page is rarely the window.
+				const replace = () => {
+					if (this.editing()) {
+						this.placeSuggestions();
+					}
+				};
+				const options: AddEventListenerOptions = { capture: true, passive: true };
+
+				document.addEventListener('scroll', replace, options);
+				window.addEventListener('resize', replace, options);
+
+				this.#destroyRef.onDestroy(() => {
+					document.removeEventListener('scroll', replace, options);
+					window.removeEventListener('resize', replace, options);
+				});
+			},
+			{ injector: this.#injector }
+		);
+	}
+
+	/** The `dir` to put on the host: nothing when the page is left to decide, which is `'auto'`. */
+	protected readonly forcedDirection = computed(() => (this.direction() === 'auto' ? null : this.direction()));
+
+	/**
+	 * Which way the sheet actually runs, once the page has had its say.
+	 *
+	 * `'auto'` is answered by the element itself, because `dir` is inherited and only the element
+	 * knows what it inherited. Read after render: before it, the attribute this very binding sets is
+	 * not on the element yet, so the answer would be the page's and not the sheet's.
+	 */
+	private readonly resolvedDirection = signal<'ltr' | 'rtl'>('ltr');
+
+	private readonly readDirection = afterRenderEffect({
+		read: () => {
+			const preference = this.direction();
+			const computed = getComputedStyle(this.#host.nativeElement).direction === 'rtl' ? 'rtl' : 'ltr';
+
+			this.resolvedDirection.set(preference === 'auto' ? computed : preference);
+		}
+	});
+
+	/** Whether the sheet runs right to left, which is what the menu and the list have to know. */
+	protected readonly rtl = computed(() => this.resolvedDirection() === 'rtl');
 
 	/** The rows, as the owner holds them. Never written to. */
 	readonly rows = input.required<readonly TRow[]>();
@@ -190,6 +251,24 @@ export class HubSpreadsheetComponent<TRow> {
 
 	/** Aliases retired by earlier deletions, so a new column never reuses one. */
 	readonly retiredColumnKeys = input<readonly string[]>([]);
+	/**
+	 * Which way the sheet runs.
+	 *
+	 * `'auto'` follows whatever the page says, which is the only honest default: a sheet dropped
+	 * into a right-to-left article on a left-to-right page has to read the way the article does,
+	 * and a `dir` is inherited. `'ltr'` and `'rtl'` force it for a host that needs the sheet to run
+	 * against the page around it.
+	 */
+	readonly direction = input<'auto' | 'ltr' | 'rtl'>('auto');
+	/**
+	 * Whether `Ctrl`-clicking (`Cmd` on a Mac) adds a second rectangle to the selection instead of
+	 * starting a new one.
+	 *
+	 * On, because it is what a spreadsheet does and because the gesture is otherwise spent: a plain
+	 * click already selects, so `Ctrl` had nothing to say. Off for a host that wants the modifier
+	 * for something of its own.
+	 */
+	readonly disjointSelection = input(true, { transform: booleanAttribute });
 	/** Whether the sheet offers the fill handle at the corner of the selection. */
 	readonly fillHandle = input(false, { transform: booleanAttribute });
 	/** Whether undo is available; the sheet only asks, the owner keeps the history. */
@@ -319,6 +398,13 @@ export class HubSpreadsheetComponent<TRow> {
 	 * thing in a line.
 	 */
 	readonly mergeRequested = output<HubSpreadsheetMergeRequest>();
+	/**
+	 * Every rectangle of the selection, whenever it changes.
+	 *
+	 * Beside {@link selectionChange}, which keeps reporting the one the cursor is in: a host that
+	 * shows "sum of the selection" needs all of them, and one that shows "you are in B4" does not.
+	 */
+	readonly selectionRangesChange = output<readonly HubGridRange[]>();
 	/** The reader asked to take apart the blocks their selection touches, named by their anchors. */
 	readonly unmergeRequested = output<readonly HubGridCoords[]>();
 
@@ -326,6 +412,22 @@ export class HubSpreadsheetComponent<TRow> {
 	protected readonly active = signal<HubGridCoords | null>(null);
 	/** The other corner of the selection; null when only the active cell is selected. */
 	protected readonly anchor = signal<HubGridCoords | null>(null);
+	/**
+	 * The rectangles picked before the one being drawn.
+	 *
+	 * Held apart from the anchor and the cursor rather than as a list including them, because the
+	 * live one has to keep growing under the pointer while the others stay exactly as they were.
+	 */
+	protected readonly extraRanges = signal<readonly HubGridRange[]>([]);
+	/**
+	 * The cells a pointing gesture is over, while a formula is being written.
+	 *
+	 * Kept apart from the selection: pointing picks a reference to put into the text, and moving the
+	 * reader's own selection out from under them to do it would be a different gesture wearing the
+	 * same click.
+	 */
+	private readonly pointAnchor = signal<HubGridCoords | null>(null);
+	private readonly pointTarget = signal<HubGridCoords | null>(null);
 	protected readonly editing = signal(false);
 	protected readonly draft = signal('');
 
@@ -383,6 +485,8 @@ export class HubSpreadsheetComponent<TRow> {
 	 * measures.
 	 */
 	private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
+	/** The coloured copy of the draft drawn behind the editor while a formula is being written. */
+	private readonly tokens = viewChild<ElementRef<HTMLElement>>('tokens');
 
 	private readonly scrollTop = signal(0);
 	private readonly viewportHeight = signal(0);
@@ -544,13 +648,51 @@ export class HubSpreadsheetComponent<TRow> {
 	private readonly suggestionAt = signal(-1);
 
 	/**
+	 * Where the list of suggestions is anchored, in the host's own coordinates.
+	 *
+	 * The list used to be drawn inside the cell, and the scroll area — which is what makes the
+	 * sheet scroll — clipped it: on the last row it fell below the viewport and was never seen,
+	 * which is exactly the row a total is written in. It hangs off the host now, like the
+	 * structural menu, where no scroll area can cut it. `top` opens below the cell and `bottom`
+	 * above it, only one of the two ever being set; both null until the sheet has been measured.
+	 */
+	protected readonly suggestionsAt = signal<{
+		readonly x: number;
+		readonly top: number | null;
+		readonly bottom: number | null;
+		readonly maxWidth: number;
+	} | null>(null);
+
+	/**
+	 * Whether the cell being edited opens the plain field, which is the only editor the list of
+	 * suggestions belongs to.
+	 *
+	 * A list, a calendar or a host-supplied editor owns its own keystrokes, and the formula
+	 * language is not what is being typed there. While the list was drawn inside the field's own
+	 * branch that was true by construction; lifted to the host it has to be said.
+	 */
+	private readonly editingField = computed(() => {
+		const active = this.active();
+
+		if (!active || !this.editing()) {
+			return false;
+		}
+
+		return (
+			!this.editorFor(active.col) &&
+			!this.hostedControl(active.row, active.col) &&
+			this.columns()[active.col]?.kind !== 'select'
+		);
+	});
+
+	/**
 	 * What to offer while a formula is being written, or nothing when one is not.
 	 *
 	 * A formula names columns by an alias the sheet never shows — the header carries a title meant
 	 * for people — so without this, writing one means knowing something that is not on screen.
 	 */
 	protected readonly suggestions = computed<readonly HubFormulaSuggestion[]>(() => {
-		if (!this.formulas() || !this.editing()) {
+		if (!this.formulas() || !this.editingField()) {
 			return [];
 		}
 
@@ -587,25 +729,169 @@ export class HubSpreadsheetComponent<TRow> {
 	/** Whether a formula is being written, which is when the aliases are worth showing. */
 	protected readonly writingFormula = computed(() => this.formulas() && this.editing() && isFormula(this.draft()));
 
+	/**
+	 * The draft split into the pieces a formula is made of, so they can be drawn apart.
+	 *
+	 * Read off the raw draft rather than off the value that is shown, because this is what the
+	 * reader is typing: a half-written `=SUM(` still has to say those three things are what they
+	 * are, or the colour would only arrive once the formula was already right.
+	 */
+	protected readonly draftTokens = computed<readonly HubFormulaToken[]>(() => tokenizeFormula(this.draft()));
+
+	/**
+	 * Keeps the coloured copy under the field lined up with the field's own text.
+	 *
+	 * The field scrolls sideways once the formula is longer than the cell, and the copy has no way
+	 * to know it did — so it is told, on every scroll and on every keystroke that moves the caret.
+	 */
+	protected syncTokens(event: Event): void {
+		const overlay = this.tokens()?.nativeElement;
+		const field = event.target as HTMLElement | null;
+
+		if (overlay && field) {
+			overlay.scrollLeft = field.scrollLeft;
+		}
+	}
+
 	/** The letters a column answers to in a formula: A, B … Z, AA. */
 	protected columnLetter(index: number): string {
 		return columnLabel(index);
 	}
 
+	/**
+	 * Writes a column's alias into the formula being written, from its header badge.
+	 *
+	 * Nothing when no formula is being written: the badge also shows outside one, as a reading of
+	 * what the column is called, and a click there has nothing to write into.
+	 */
+	protected insertAlias(column: HubSpreadsheetColumn<TRow>): void {
+		if (this.writingFormula()) {
+			this.useSuggestion({ label: column.key, kind: 'column', insert: `[${column.key}]` });
+		}
+	}
+
 	/** Puts a suggestion into the draft and leaves the caret where the next thing is typed. */
 	protected useSuggestion(suggestion: HubFormulaSuggestion): void {
-		const editor = this.#host.nativeElement.querySelector<HTMLInputElement>('input.hub-spreadsheet__editor');
+		const editor = this.editorField();
 		const caret = editor?.selectionStart ?? this.draft().length;
 		const applied = applySuggestion(this.draft(), suggestion, caret);
 
-		this.draft.set(applied.draft);
+		this.writeDraft(applied.draft, applied.caret);
+	}
+
+	/** The field a formula is being written in, when there is one. */
+	private editorField(): HTMLInputElement | null {
+		return this.#host.nativeElement.querySelector<HTMLInputElement>('input.hub-spreadsheet__editor');
+	}
+
+	/**
+	 * Puts text into the draft at the caret and leaves it there, ready for what is typed next.
+	 *
+	 * The caret matters as much as the text: dropped after an inserted reference it is ready for
+	 * the operator or the next argument, and left where it was the reader has to move it by hand
+	 * every single time.
+	 */
+	private writeDraft(text: string, caret: number): void {
+		const editor = this.editorField();
+
+		this.draft.set(text);
 		this.suggestionAt.set(-1);
 
 		if (editor) {
-			editor.value = applied.draft;
+			editor.value = text;
 			editor.focus();
-			editor.setSelectionRange(applied.caret, applied.caret);
+			editor.setSelectionRange(caret, caret);
 		}
+	}
+
+	/** Starts pointing at cells to put their reference into the formula being written. */
+	protected beginPointing(row: number, col: number): void {
+		this.pointAnchor.set({ row, col });
+		this.pointTarget.set({ row, col });
+	}
+
+	/** Gives up on a pointing gesture without writing anything. */
+	private cancelPointing(): void {
+		this.pointAnchor.set(null);
+		this.pointTarget.set(null);
+	}
+
+	/**
+	 * Writes the pointed rectangle into the formula as a reference and ends the gesture.
+	 *
+	 * A single cell goes in as `B3`; more than one as `B3:D7`, the way a spreadsheet names a
+	 * rectangle. Coordinates rather than aliases, because that is what pointing at cells means:
+	 * an alias names a whole column, and there is no alias for one cell or for a patch of them.
+	 */
+	private commitPointing(): void {
+		const anchor = this.pointAnchor();
+		const target = this.pointTarget();
+
+		this.cancelPointing();
+
+		if (!anchor || !target) {
+			return;
+		}
+
+		const range = gridRangeBetween(anchor, target);
+		const near = formatCoordinate({ row: range.top, col: range.left });
+		const far = formatCoordinate({ row: range.bottom, col: range.right });
+		const reference = near === far ? near : `${near}:${far}`;
+		const editor = this.editorField();
+		const caret = editor?.selectionStart ?? this.draft().length;
+
+		this.writeDraft(this.draft().slice(0, caret) + reference + this.draft().slice(caret), caret + reference.length);
+	}
+
+	/**
+	 * Works out where the list of suggestions belongs, against the cell being edited.
+	 *
+	 * The list is `fixed`, so these are window coordinates read straight off the cell's own
+	 * rectangle — which is also the only honest way to place it with frozen panes and
+	 * virtualisation, where the drawn position and the scroll offset are not the same number. It
+	 * hangs just under the cell, pulled in only as far as keeps it on screen, and it flips above
+	 * the cell when the window has no room below — so the last row of a sheet that reaches the
+	 * foot of the page can still be written in.
+	 */
+	private placeSuggestions(): void {
+		const active = this.active();
+
+		if (!active) {
+			this.suggestionsAt.set(null);
+
+			return;
+		}
+
+		const cell = this.#host.nativeElement
+			.querySelector<HTMLElement>(`[data-cell="${active.row}-${active.col}"]`)
+			?.getBoundingClientRect();
+
+		// A sheet that has not been laid out — a hidden panel, a closed tab, a test with no layout —
+		// has nothing to measure. The list keeps where it was rather than jumping to a corner, and
+		// the next placement gets it right.
+		if (!cell || (cell.width === 0 && cell.height === 0)) {
+			return;
+		}
+
+		// The width the list asks for, and how far it can go before running off the window's edge.
+		// Measured from the edge the sheet starts at — the left when it reads left to right, the
+		// right when it does not — because the list is placed by its inline start, whichever that is.
+		const wanted = 224;
+		const width = Math.min(wanted, window.innerWidth);
+		const fromStart = this.rtl() ? window.innerWidth - cell.right : cell.left;
+		const x = Math.max(0, Math.min(fromStart, window.innerWidth - width));
+
+		// Below is the default; above only when below is the shorter side, so the list does not
+		// cover the rows the reader is writing between.
+		const roomBelow = window.innerHeight - cell.bottom;
+		const above = roomBelow < wanted && cell.top > roomBelow;
+
+		this.suggestionsAt.set({
+			x,
+			top: above ? null : cell.bottom,
+			bottom: above ? window.innerHeight - cell.top : null,
+			maxWidth: Math.max(width, window.innerWidth - x)
+		});
 	}
 
 	/** Whether a cell is showing a formula that could not be worked out. */
@@ -638,6 +924,23 @@ export class HubSpreadsheetComponent<TRow> {
 	});
 
 	/**
+	 * Every rectangle the reader has picked: the ones held with `Ctrl`, and the live one last.
+	 *
+	 * Trimmed to the grid on every read for the same reason one rectangle is — rows come and go
+	 * under a live selection, and a stale rectangle would be cleared or copied against cells that
+	 * are not there any more.
+	 */
+	protected readonly selection = computed<readonly HubGridRange[]>(() => {
+		const live = this.range();
+		const kept = clampGridSelection(this.extraRanges(), this.bounds());
+
+		return live ? addGridRange(kept, live) : kept;
+	});
+
+	/** Whether the reader has picked more than one rectangle. */
+	protected readonly disjoint = computed(() => this.selection().length > 1);
+
+	/**
 	 * Keeps the cursor where it was when the rows are replaced by a reload after a save, and drops
 	 * it only once it points at nothing. Typing a value and pressing Enter has to land on the cell
 	 * below even when the saved figures come back as fresh objects.
@@ -651,6 +954,7 @@ export class HubSpreadsheetComponent<TRow> {
 			if (active && (active.row >= rows || active.col >= cols)) {
 				this.active.set(null);
 				this.anchor.set(null);
+				this.extraRanges.set([]);
 				this.editing.set(false);
 			}
 		});
@@ -826,7 +1130,29 @@ export class HubSpreadsheetComponent<TRow> {
 	}
 
 	protected isSelected(row: number, col: number): boolean {
-		return isWithinGridRange({ row, col }, this.range());
+		return isWithinGridSelection({ row, col }, this.selection());
+	}
+
+	/** Whether a press is being dragged out to point a reference into the formula being written. */
+	protected readonly pointing = computed(() => !!this.pointAnchor());
+
+	/**
+	 * The rectangle a pointing gesture currently covers, or null when none is in progress.
+	 *
+	 * Drawn on the cells rather than kept out of sight, because the whole point of pointing is to
+	 * see what is about to go into the formula before letting go of it.
+	 */
+	protected readonly pointedRange = computed<HubGridRange | null>(() => {
+		const anchor = this.pointAnchor();
+		const target = this.pointTarget();
+
+		return anchor && target ? gridRangeBetween(anchor, target) : null;
+	});
+
+	protected isPointed(row: number, col: number): boolean {
+		const range = this.pointedRange();
+
+		return !!range && isWithinGridRange({ row, col }, range);
 	}
 
 	protected tabIndexOf(row: number, col: number): number {
@@ -1099,7 +1425,22 @@ export class HubSpreadsheetComponent<TRow> {
 	}
 
 	protected onMouseDown(event: MouseEvent, row: number, col: number): void {
-		if (event.button !== 0 || (this.editing() && this.isActive(row, col))) {
+		if (event.button !== 0) {
+			return;
+		}
+
+		// While a formula is being written, a press on another cell points at it instead of
+		// committing the text: that is how a reference gets into a formula without typing its
+		// address. The press is swallowed so the field keeps the focus and the caret it was about
+		// to lose — which is also what lets the reader drag out a rectangle.
+		if (this.editing() && this.writingFormula() && !this.isActive(row, col)) {
+			event.preventDefault();
+			this.beginPointing(row, col);
+
+			return;
+		}
+
+		if (this.editing() && this.isActive(row, col)) {
 			return;
 		}
 
@@ -1109,7 +1450,21 @@ export class HubSpreadsheetComponent<TRow> {
 
 		this.dragging = true;
 		this.dragMoved = false;
-		this.moveTo({ row, col }, event.shiftKey);
+
+		// `Ctrl` (or `Cmd`) puts the rectangle that was being drawn away and starts another, so the
+		// reader can pick blocks that have nothing to do with each other. Shift still extends the
+		// live one, and holding both extends it without losing the rest.
+		const adding = this.disjointSelection() && (event.ctrlKey || event.metaKey);
+
+		if (adding && !event.shiftKey) {
+			const live = this.range();
+
+			if (live) {
+				this.extraRanges.update((ranges) => addGridRange(ranges, live));
+			}
+		}
+
+		this.moveTo({ row, col }, event.shiftKey, adding);
 	}
 
 	/**
@@ -1135,6 +1490,13 @@ export class HubSpreadsheetComponent<TRow> {
 	}
 
 	protected onMouseEnter(row: number, col: number): void {
+		// Pointing grows its own rectangle, and the reader's selection is left exactly where it was.
+		if (this.pointing()) {
+			this.pointTarget.set({ row, col });
+
+			return;
+		}
+
 		if (this.dragging && !this.isActive(row, col)) {
 			this.dragMoved = true;
 		}
@@ -1210,8 +1572,19 @@ export class HubSpreadsheetComponent<TRow> {
 	}
 
 	protected endDrag(): void {
+		const pointing = this.pointing();
+
 		this.dragging = false;
 		this.resizing = null;
+
+		// A pointing gesture is not a drag: releasing it writes the reference rather than finishing
+		// a column move or a fill, neither of which was ever started.
+		if (pointing) {
+			this.commitPointing();
+
+			return;
+		}
+
 		this.commitColumnMove();
 
 		if (this.fillSource()) {
@@ -1239,7 +1612,10 @@ export class HubSpreadsheetComponent<TRow> {
 
 		const host = this.#host.nativeElement.getBoundingClientRect();
 
-		this.menuAt.set({ x: event.clientX - host.left, y: event.clientY - host.top });
+		// Placed by its inline start, so measured from the edge the sheet starts at.
+		const x = this.rtl() ? host.right - event.clientX : event.clientX - host.left;
+
+		this.menuAt.set({ x, y: event.clientY - host.top });
 	}
 
 	protected closeMenu(): void {
@@ -1400,6 +1776,11 @@ export class HubSpreadsheetComponent<TRow> {
 		this.scrollLeft.set(viewport.scrollLeft);
 		this.viewportWidth.set(viewport.clientWidth);
 
+		// The cell being edited has moved with the scroll, and so has the list hanging off it.
+		if (this.editing()) {
+			this.placeSuggestions();
+		}
+
 		if (!this.rowHeight()) {
 			const row = viewport.querySelector<HTMLElement>('.hub-spreadsheet__row');
 			const height = row?.getBoundingClientRect().height ?? 0;
@@ -1442,7 +1823,11 @@ export class HubSpreadsheetComponent<TRow> {
 	protected hasFillHandle(row: number, col: number): boolean {
 		const range = this.range();
 
-		return this.fillHandle() && !this.readonly() && !!range && row === range.bottom && col === range.right;
+		// Never on a disjoint selection: a fill continues one rectangle, and which of several it
+		// would continue is a question with no answer. A spreadsheet drops the handle too.
+		return (
+			this.fillHandle() && !this.readonly() && !this.disjoint() && !!range && row === range.bottom && col === range.right
+		);
 	}
 
 	/** Whether a cell is inside the area a released fill would write to. */
@@ -1578,19 +1963,22 @@ export class HubSpreadsheetComponent<TRow> {
 	}
 
 	protected onCopy(event: ClipboardEvent, cut: boolean): void {
-		const range = this.range();
+		// Several rectangles only make a table when they line up — all on the same columns, or all
+		// on the same rows. Anything else has no honest shape to write, so nothing is written and
+		// the clipboard keeps what it had, which is what Excel does when it refuses the command.
+		const table = gridSelectionTable(this.selection());
 
-		if (!range || this.editing() || !event.clipboardData) {
+		if (!table || this.editing() || !event.clipboardData) {
 			return;
 		}
 
 		const grid = this.grid();
 		const values = [];
 
-		for (let row = range.top; row <= range.bottom; row++) {
+		for (const row of table.rows) {
 			const line: HubSpreadsheetValue[] = [];
 
-			for (let col = range.left; col <= range.right; col++) {
+			for (const col of table.cols) {
 				line.push(grid[row][col].value);
 			}
 
@@ -1714,6 +2102,10 @@ export class HubSpreadsheetComponent<TRow> {
 
 		this.draft.set((event.target as HTMLInputElement).value);
 		this.invalid.set(false);
+
+		// The copy behind has just changed length, and may have been re-anchored; keep it where the
+		// field is rather than at the start of the line.
+		this.syncTokens(event);
 	}
 
 	protected onEditorKeydown(event: KeyboardEvent): void {
@@ -1745,7 +2137,15 @@ export class HubSpreadsheetComponent<TRow> {
 			case 'Escape':
 				event.preventDefault();
 				event.stopPropagation();
-				this.cancelEdit();
+
+				// A pointing gesture in flight is what Escape gives up first: the formula stays as it
+				// was, and the reader is still writing it.
+				if (this.pointing()) {
+					this.cancelPointing();
+				} else {
+					this.cancelEdit();
+				}
+
 				break;
 		}
 	}
@@ -1936,6 +2336,10 @@ export class HubSpreadsheetComponent<TRow> {
 		this.invalid.set(false);
 		this.editing.set(true);
 
+		// The cell is already drawn — it is the one that was clicked — so its rectangle can be read
+		// now, and the list is anchored before the list itself is ever rendered.
+		this.placeSuggestions();
+
 		afterNextRender(
 			() => {
 				const editor = this.#host.nativeElement.querySelector<HTMLElement>('.hub-spreadsheet__editor');
@@ -2104,7 +2508,7 @@ export class HubSpreadsheetComponent<TRow> {
 		return typeof cell.value === 'number' ? String(cell.value).replace('.', this.decimalMark()) : String(cell.value);
 	}
 
-	private moveTo(rawTarget: HubGridCoords, extend: boolean): void {
+	private moveTo(rawTarget: HubGridCoords, extend: boolean, keepExtras = false): void {
 		// Arithmetic runs on plain coordinates; landing on a covered cell then resolves to the
 		// block that owns it, so the cursor is never on something that is not drawn.
 		const target = anchorOf(this.spanMap(), rawTarget);
@@ -2115,12 +2519,19 @@ export class HubSpreadsheetComponent<TRow> {
 			this.anchor.set(null);
 		}
 
+		// Any ordinary move starts the selection again, which is what every spreadsheet does: the
+		// rectangles held with `Ctrl` last until the reader clicks or walks somewhere plainly.
+		if (!keepExtras) {
+			this.extraRanges.set([]);
+		}
+
 		this.active.set(target);
 		this.announceSelection();
 		this.focusActive();
 	}
 
 	private selectRange(range: HubGridRange): void {
+		this.extraRanges.set([]);
 		this.anchor.set({ row: range.top, col: range.left });
 		this.active.set({ row: range.bottom, col: range.right });
 		this.announceSelection();
@@ -2200,6 +2611,13 @@ export class HubSpreadsheetComponent<TRow> {
 	 * missing, which is also when the sheet is drawing every column anyway.
 	 */
 	private scrollColumnIntoView(viewport: HTMLElement, col: number): void {
+		// Right to left, the scroll offset runs the other way and the arithmetic below would nudge
+		// the sheet in the wrong direction. The browser's own focus scroll brings the drawn cell
+		// into view; reaching a column that is not drawn yet is left alone rather than guessed at.
+		if (this.rtl()) {
+			return;
+		}
+
 		const widths = this.measuredColumnWidths();
 		const frozen = Math.min(this.frozenColumns(), this.columns().length);
 
@@ -2250,16 +2668,17 @@ export class HubSpreadsheetComponent<TRow> {
 
 	private announceSelection(): void {
 		this.selectionChange.emit(this.range());
+		this.selectionRangesChange.emit(this.selection());
 	}
 
 	private announceCleared(): void {
-		const range = this.range();
+		const ranges = this.selection();
 
-		if (!range || this.readonly()) {
+		if (!ranges.length || this.readonly()) {
 			return;
 		}
 
-		const cells = gridRangeCells(range)
+		const cells = gridSelectionCells(ranges)
 			.filter(({ row, col }) => this.canEdit(row, col) && this.grid()[row][col].value !== null)
 			.map((coords) => this.refAt(coords));
 

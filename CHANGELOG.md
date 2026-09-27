@@ -1,5 +1,72 @@
 # Changelog
 
+## [22.1.0] - 2026-09-27
+
+### Added
+
+- **More than one block at a time.** `Ctrl`-clicking (`Cmd` on a Mac) keeps the rectangle that was
+  being drawn and starts another, so a reader can pick blocks that have nothing to do with each
+  other — which is what everybody does in a spreadsheet to empty four scattered patches in one go.
+  Every rectangle is marked, `Delete` empties all of them, and the cursor stays in the last one. Any
+  ordinary click or arrow key starts the selection again, as a spreadsheet does. `selectionChange`
+  keeps reporting the rectangle the cursor is in; the new `selectionRangesChange` reports them all,
+  for a host showing the sum of what is selected. `disjointSelection` turns the gesture off for a
+  host that wants the modifier for something of its own.
+    - **A copy only happens when the blocks make a table**: all on the same columns, so they stack,
+      or all on the same rows, so they sit side by side. Anything else is refused and the clipboard
+      is left as it was, rather than squashing blocks together into a shape nobody chose — the same
+      rule behind Excel's "that command cannot be used on multiple selections".
+    - **The fill handle is dropped** while more than one block is picked. A fill continues one
+      rectangle, and which of several it would continue has no answer.
+- **`hub-spreadsheet-theme`, one include for the sheet's 65 themeable tokens.**
+  `@use 'ng-hub-ui-spreadsheet/styles' as sheet;` and every parameter is optional, so only what is
+  passed is emitted and the rest keep falling through `--hub-table-*` to the design system. Reach
+  for it for what a table theme does not already cover.
+- **A formula is written in colour.** While one is being written, the sheet draws the draft twice:
+  the field holds the text, and a copy behind it — the one the reader sees — colours each piece by
+  what it is, the way a spreadsheet does. A function, a column alias, a cell reference and a quoted
+  string each get their own colour _and a faint wash of it_, so where one piece ends and the next
+  begins is visible even when two of them are the same; numbers, booleans and operators keep the
+  sheet's text colour and the punctuation steps back. Four new tokens,
+  `--hub-spreadsheet-token-{function,column,coordinate,text}-color`, with the mixin parameters to
+  match.
+- **The coordinates come out while a cell is open.** The table shifts down and in a touch leaving
+  room, and into it float badges: a column's letter and the alias a formula calls it by over the
+  header, the row's number down the leading edge — so a reference can be read off the sheet instead
+  of counted, and the alias is somewhere on screen at last. They arrive with a short animation and
+  the shift is animated too, so opening a cell does not move it out from under the caret. Nothing is
+  added to the grid: the badges are decoration (the grid already names every cell by its indices),
+  and both the shift and the badges are laid out with logical properties, so they mirror with the
+  sheet's direction.
+- **A `direction` input, and right-to-left sheets.** `'auto'` follows the page — `dir` is inherited,
+  so a sheet inside a right-to-left article reads the way the article does — while `'ltr'` and
+  `'rtl'` force it. The menu and the list of suggestions are placed by their logical start, so they
+  hang off the correct edge; the letters run A… from the right and the row numbers move to the right
+  edge, as a spreadsheet does in Arabic or Hebrew.
+- **Pointing at cells to write their reference.** While a formula is being written, pressing — or
+  dragging across — other cells no longer commits the text: it puts what was pointed at into the
+  formula at the caret, a single cell as `B3` and a rectangle as `B3:D7`. The pointed cells are
+  ringed so the reader sees what is about to go in, `Escape` gives the gesture up, and coordinates
+  are used because that is what pointing is: an alias names a whole column, and there is none for one
+  cell or for a patch of them.
+
+### Fixed
+
+- **Theming the sheet from outside it now works at all.** The tokens were _declared_ on the host
+  element, and a custom property declared on an element beats the same property inherited from an
+  ancestor — so `:root`, a wrapper class and a route-level theme were all silently ignored, and the
+  only thing that worked was an inline style on the element itself. What the reference document
+  promised was therefore false. The chains now live in one place in the stylesheet and every rule
+  reads through them, which is what `ng-hub-ui-paginable` has always done, so an ancestor's value is
+  the first thing the chain finds. The defaults are unchanged: an untouched sheet renders exactly as
+  it did.
+- **The list of what can go into a formula is now actually seen.** It existed and was tested, but it
+  was drawn inside the cell, and both the sheet's own scroll area and any `overflow: hidden` between
+  the cell and the page cut it off: on the last row — the row a total is written in — it fell below
+  the viewport and never appeared at all, so the assistant looked absent from the outside. It is
+  fixed to the window now, which nothing between the cell and the page can clip, and it opens above
+  the cell when the window has no room below. Verified in a browser, not only in the suite.
+
 ## [22.0.0] - 2026-09-27
 
 First release. An editable sheet of cells for Angular, built on primitives that live in

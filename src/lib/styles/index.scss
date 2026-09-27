@@ -1,0 +1,11 @@
+// ─────────────────────────────────────────────────────────────────────────
+// ng-hub-ui-spreadsheet — theming entry
+// ─────────────────────────────────────────────────────────────────────────
+// The component ships its own structure: nothing here has to be imported for a
+// sheet to render. What this entry forwards is the opt-in theming mixin, so it
+// can be reached from the package root instead of from the partial:
+//
+//   @use 'ng-hub-ui-spreadsheet/styles' as *;
+// ─────────────────────────────────────────────────────────────────────────
+
+@forward 'mixins/spreadsheet-theme';

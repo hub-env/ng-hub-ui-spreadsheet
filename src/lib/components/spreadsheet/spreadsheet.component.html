@@ -53,26 +53,26 @@
 						(mouseenter)="onHeaderMouseEnter(columnIndex)"
 						[attr.aria-colindex]="columnIndex + 1"
 					>
+						<!-- The letter this column answers to and the name a formula calls it by, in a
+						badge over the header, while a cell is open. Clicking it writes the alias into a
+						formula being written, because the alternative is knowing it by heart. Decorative:
+						the grid already names every cell by its column index. -->
+						@if (editing()) {
+							<button
+								class="hub-spreadsheet__coord hub-spreadsheet__coord--column"
+								type="button"
+								tabindex="-1"
+								aria-hidden="true"
+								(mousedown)="$event.preventDefault(); insertAlias(column)"
+							>
+								<span class="hub-spreadsheet__coord-letter">{{ columnLetter(columnIndex) }}</span>
+								<span class="hub-spreadsheet__coord-alias">{{ column.key }}</span>
+							</button>
+						}
+
 						<span [class.hub-spreadsheet__header-text--hidden]="column.headerHidden">
 							{{ column.header }}
 						</span>
-						<!-- The name a formula calls this column, which is not the name on the header.
-					Shown only while one is being written, and clickable, because the alternative is
-					knowing it by heart. -->
-						@if (writingFormula()) {
-							<button
-								class="hub-spreadsheet__alias"
-								type="button"
-								tabindex="-1"
-								(mousedown)="
-									$event.preventDefault();
-									useSuggestion({ label: column.key, kind: 'column', insert: '[' + column.key + ']' })
-								"
-							>
-								<span class="hub-spreadsheet__alias-letter">{{ columnLetter(columnIndex) }}</span>
-								{{ column.key }}
-							</button>
-						}
 
 						@if (column.subheader) {
 							<small class="hub-spreadsheet__subheader">{{ column.subheader }}</small>
@@ -155,6 +155,7 @@
 								[class.hub-spreadsheet__cell--active]="isActive(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--editing]="editing() && isActive(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--selected]="isSelected(rowIndex, colIndex)"
+								[class.hub-spreadsheet__cell--pointed]="isPointed(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--end-of-sheet]="reachesEnd(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--filling]="isFillPreview(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--readonly]="!editable"
@@ -179,6 +180,16 @@
 								(dblclick)="onDoubleClick()"
 								(contextmenu)="onContextMenu($event, rowIndex, colIndex)"
 							>
+								<!-- The row's own number, in a badge out to the leading edge while a cell
+								is open, so a reference can be read off the sheet instead of counted. In the
+								first column's cell it rides with the row and drops into the room the shifted
+								table leaves. Decorative: the row index is already on the grid row. -->
+								@if (editing() && colIndex === 0) {
+									<span class="hub-spreadsheet__coord hub-spreadsheet__coord--row" aria-hidden="true">
+										{{ rowIndex + 1 }}
+									</span>
+								}
+
 								@if (editing() && isActive(rowIndex, colIndex)) {
 									@if (editorFor(colIndex); as custom) {
 										<!-- The host supplied an editor for this column. It reports a value through
@@ -218,40 +229,30 @@
 											}
 										</select>
 									} @else {
-										@if (suggesting()) {
-											<!-- What can go into the formula, because the aliases it needs are nowhere
-										else on screen. Hidden from assistive technology: the field owns the
-										conversation, and a list that announced itself over every keystroke
-										would talk across it. -->
-											<div class="hub-spreadsheet__suggestions" role="presentation" aria-hidden="true">
-												@for (suggestion of suggestions(); track suggestion.label; let index = $index) {
-													<button
-														class="hub-spreadsheet__suggestion"
-														type="button"
-														tabindex="-1"
-														[class.hub-spreadsheet__suggestion--on]="index === suggestionIndex()"
-														(mousedown)="$event.preventDefault(); useSuggestion(suggestion)"
+										@if (writingFormula()) {
+											<!-- The draft again, in colour, drawn behind the field — which keeps the
+										text transparent so this is what the reader sees. Named by kind so a
+										function, a column alias and a place are told apart at a glance. Hidden
+										from assistive technology: it is a second copy of the field's own text. -->
+											<div class="hub-spreadsheet__tokens" aria-hidden="true" #tokens>
+												@for (token of draftTokens(); track $index) {
+													<span
+														[class]="'hub-spreadsheet__token hub-spreadsheet__token--' + token.kind"
+														>{{ token.text }}</span
 													>
-														<span class="hub-spreadsheet__suggestion-name">{{
-															suggestion.label
-														}}</span>
-														@if (suggestion.hint) {
-															<span class="hub-spreadsheet__suggestion-hint">{{
-																suggestion.hint
-															}}</span>
-														}
-													</button>
 												}
 											</div>
 										}
 
 										<input
 											class="hub-spreadsheet__editor"
+											[class.hub-spreadsheet__editor--coloured]="writingFormula()"
 											[type]="column.kind === 'date' ? 'date' : 'text'"
 											[value]="draft()"
 											[attr.aria-label]="column.header"
 											[attr.aria-invalid]="invalid() || null"
 											(input)="onDraftInput($event)"
+											(scroll)="syncTokens($event)"
 											(keydown)="onEditorKeydown($event)"
 											(blur)="onEditorBlur()"
 										/>
@@ -276,13 +277,6 @@
 											[ngTemplateOutletContext]="cellContext(rowIndex, colIndex)"
 										/>
 									} @else {
-										<!-- The row's number, so a coordinate can be read off the sheet instead of
-									counted. Only while a formula is being written, and only in the first
-									column drawn, which is where a spreadsheet puts it. -->
-										@if (writingFormula() && colIndex === drawnColumns()[0]) {
-											<span class="hub-spreadsheet__rownum" aria-hidden="true">{{ rowIndex + 1 }}</span>
-										}
-
 										<span class="hub-spreadsheet__value">{{ displayOf(cell, column) }}</span>
 
 										@if (column.placeholder && !displayOf(cell, column)) {
@@ -344,6 +338,37 @@
 		</tbody>
 	</table>
 </div>
+
+@if (suggesting()) {
+	<!-- What can go into the formula being written. Anchored to the host, never to the cell: drawn
+	inside the cell the scroll area cut it, and on the last row — the row a total is written in —
+	it was never seen at all. The position is the component's; these are the looks. Hidden from
+	assistive technology: the field owns the conversation. -->
+	<div
+		class="hub-spreadsheet__suggestions"
+		role="presentation"
+		aria-hidden="true"
+		[style.inset-inline-start.px]="suggestionsAt()?.x"
+		[style.inset-block-start.px]="suggestionsAt()?.top"
+		[style.inset-block-end.px]="suggestionsAt()?.bottom"
+		[style.max-inline-size.px]="suggestionsAt()?.maxWidth"
+	>
+		@for (suggestion of suggestions(); track suggestion.label; let index = $index) {
+			<button
+				class="hub-spreadsheet__suggestion"
+				type="button"
+				tabindex="-1"
+				[class.hub-spreadsheet__suggestion--on]="index === suggestionIndex()"
+				(mousedown)="$event.preventDefault(); useSuggestion(suggestion)"
+			>
+				<span class="hub-spreadsheet__suggestion-name">{{ suggestion.label }}</span>
+				@if (suggestion.hint) {
+					<span class="hub-spreadsheet__suggestion-hint">{{ suggestion.hint }}</span>
+				}
+			</button>
+		}
+	</div>
+}
 
 @if (menuAt(); as at) {
 	<!-- Positioned against the host, which is the sheet's own corner, so the menu travels with a

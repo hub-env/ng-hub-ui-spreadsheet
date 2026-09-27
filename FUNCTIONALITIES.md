@@ -55,7 +55,10 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 | **Selection**     | Rectangular range, extended with shift or by dragging                   |     ✅      |       ❌        |
 |                   | `Ctrl+A`, `Ctrl+Space`, `Shift+Space`                                   |     ✅      |       ❌        |
 |                   | `Delete` empties the selection (`cleared`)                              |     ✅      |       ❌        |
-|                   | Disjoint selections                                                     |     ❌      |       ❌        |
+|                   | Disjoint selections (`Ctrl`-click a second block)                       |     ✅      |       ✅        |
+|                   | `Delete` empties every block; the cursor stays in the last one          |     ✅      |       ✅        |
+|                   | A copy only when the blocks make a table, refused otherwise             |     ✅      |       ❌        |
+|                   | The fill handle dropped while more than one block is picked             |     ✅      |       ✅        |
 | **Clipboard**     | Copy and cut as `text/plain` and `text/html`                            |     ✅      |       ❌        |
 |                   | Paste from Excel and Google Sheets                                      |     ✅      |       ❌        |
 |                   | Raw number recovered from the HTML flavour                              |     ✅      |       ❌        |
@@ -89,9 +92,10 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 | **Accessibility** | `role="grid"`, row and column indices, `aria-selected`                  |     ✅      |       ❌        |
 |                   | Roving tab stop                                                         |     ✅      |       ❌        |
 |                   | `aria-readonly` and `aria-invalid`                                      |     ✅      |       ❌        |
-| **Styling**       | 63 CSS variables, inheriting from `--hub-table-*`                       |     ✅      |       ❌        |
+| **Styling**       | 67 CSS variables, inheriting from `--hub-table-*`                       |     ✅      |       ❌        |
 |                   | Dark mode through the design system                                     |     ✅      |       ❌        |
-|                   | Sass theming mixin                                                      |     ❌      |       ❌        |
+|                   | Sass theming mixin (`hub-spreadsheet-theme`, 65 parameters)             |     ✅      |       ✅        |
+|                   | Themeable from an ancestor: `:root`, a wrapper class, a route           |     ✅      |       ✅        |
 | **Forms**         | Per-cell errors from any source (`errors`)                              |     ✅      |       ✅        |
 |                   | Signal Forms field-tree mapping (`spreadsheetFieldErrors`)              |     ✅      |       ✅        |
 |                   | The sheet as one form control (`<hub-spreadsheet-field>`)               |     ✅      |       ❌        |
@@ -112,12 +116,11 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 
 | Functionality                                           | Expected in |
 | :------------------------------------------------------ | :---------- |
-| Disjoint selections (`Ctrl`-click a second range)       | Unscheduled |
-| Sass theming mixin, beside the CSS variables            | Unscheduled |
 | Writing several sheets, or editing an existing workbook | Unscheduled |
+| A copy of blocks that do not line up                    | Never       |
 
-The two ❌ rows in the tables above are the same two items, said where somebody looking for them
-would look.
+The last one is a decision rather than a gap: blocks that line up copy as one table, and blocks that
+do not have no table to write. Excel refuses the same command for the same reason.
 
 ## Examples
 

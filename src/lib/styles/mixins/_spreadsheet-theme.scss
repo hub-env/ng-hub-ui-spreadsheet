@@ -1,0 +1,333 @@
+// ─────────────────────────────────────────────────────────────────────────
+// hub-spreadsheet-theme — one-call theming for `<hub-spreadsheet>`
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Sets any of the `--hub-spreadsheet-*` tokens in a single include. Every
+// parameter is OPTIONAL and defaults to `null`, so only what you pass is
+// emitted and everything else keeps falling through the sheet's own chain:
+// `--hub-spreadsheet-*` → `--hub-table-*` → `--hub-sys-*` → a literal. That
+// chain is the reason a project which has already themed its tables gets its
+// sheets dressed to match without setting anything at all — so reach for this
+// mixin for what the table does not cover, not to restate it.
+//
+// Include it inside any selector that wraps the sheet: the host element, a
+// container, a route, or `:root` for the whole application.
+//
+// @example — a denser sheet with a violet cursor and a taller viewport:
+//
+//   @use 'ng-hub-ui-spreadsheet/styles' as *;
+//
+//   .invoice-lines {
+//     @include hub-spreadsheet-theme(
+//       $cursor-color: var(--hub-sys-color-primary),
+//       $cell-padding-y: 0.125rem,
+//       $cell-line-height: 1.2,
+//       $max-block-size: 60vh
+//     );
+//   }
+//
+// scss-docs-start hub-spreadsheet-theme
+@mixin hub-spreadsheet-theme(
+	// ── Surface and structure ──
+	$bg: null,
+	$color: null,
+	$border-color: null,
+	$border-width: null,
+	$border-radius: null,
+	$cell-padding-x: null,
+	$cell-padding-y: null,
+	$cell-line-height: null,
+	$max-block-size: null,
+	// how tall the sheet may grow before it scrolls
+	// ── Header ──
+	$header-bg: null,
+	$header-color: null,
+	$header-font-size: null,
+	$header-font-weight: null,
+	// ── Cursor and selection ──
+	$cursor-color: null,
+	$cursor-width: null,
+	$selection-bg: null,
+	// ── Writing a formula ──
+	$suggestions-bg: null,
+	$suggestions-border-color: null,
+	$suggestion-on-bg: null,
+	$alias-bg: null,
+	$alias-color: null,
+	// the chip on each header naming the column a formula calls it by
+	$token-function-color: null,
+	$token-column-color: null,
+	$token-coordinate-color: null,
+	$token-text-color: null,
+	// ── The structural menu ──
+	$menu-bg: null,
+	$menu-color: null,
+	$menu-border-color: null,
+	$menu-radius: null,
+	$menu-shadow: null,
+	$menu-item-padding-x: null,
+	$menu-item-padding-y: null,
+	$menu-item-bg-hover: null,
+	// ── Dragging and resizing columns ──
+	$resize-grip-width: null,
+	$resize-grip-color: null,
+	$moving-opacity: null,
+	// ── The fill handle ──
+	$fill-handle-size: null,
+	$fill-handle-color: null,
+	$fill-preview-bg: null,
+	// ── What a cell opens onto, and its hint ──
+	$affordance-color: null,
+	$affordance-size: null,
+	$affordance-gap: null,
+	$affordance-field-border: null,
+	$placeholder-color: null,
+	$placeholder-opacity: null,
+	$placeholder-transition: null,
+	// ── Cells nobody can type into ──
+	$readonly-bg: null,
+	$readonly-color: null,
+	// ── The editor ──
+	$editor-bg: null,
+	$editor-color: null,
+	$editor-field-bg: null,
+	$editor-field-border-color: null,
+	$editor-field-border-radius: null,
+	$editor-field-focus-shadow: null,
+	// ── A cell that is wrong ──
+	$invalid-color: null,
+	$invalid-border-width: null,
+	$invalid-bg: null,
+	// ── Save state ──
+	$state-pending-color: null,
+	$state-saving-color: null,
+	$state-saved-color: null,
+	$state-error-color: null,
+	$state-conflict-color: null,
+	$state-bar-width: null,
+	// ── Frozen panes ──
+	$frozen-divider-color: null,
+	$frozen-divider-width: null
+) {
+	// Surface and structure
+	@if $bg != null {
+		--hub-spreadsheet-bg: #{$bg};
+	}
+	@if $color != null {
+		--hub-spreadsheet-color: #{$color};
+	}
+	@if $border-color != null {
+		--hub-spreadsheet-border-color: #{$border-color};
+	}
+	@if $border-width != null {
+		--hub-spreadsheet-border-width: #{$border-width};
+	}
+	@if $border-radius != null {
+		--hub-spreadsheet-border-radius: #{$border-radius};
+	}
+	@if $cell-padding-x != null {
+		--hub-spreadsheet-cell-padding-x: #{$cell-padding-x};
+	}
+	@if $cell-padding-y != null {
+		--hub-spreadsheet-cell-padding-y: #{$cell-padding-y};
+	}
+	@if $cell-line-height != null {
+		--hub-spreadsheet-cell-line-height: #{$cell-line-height};
+	}
+	@if $max-block-size != null {
+		--hub-spreadsheet-max-block-size: #{$max-block-size};
+	}
+
+	// Header
+	@if $header-bg != null {
+		--hub-spreadsheet-header-bg: #{$header-bg};
+	}
+	@if $header-color != null {
+		--hub-spreadsheet-header-color: #{$header-color};
+	}
+	@if $header-font-size != null {
+		--hub-spreadsheet-header-font-size: #{$header-font-size};
+	}
+	@if $header-font-weight != null {
+		--hub-spreadsheet-header-font-weight: #{$header-font-weight};
+	}
+
+	// Cursor and selection
+	@if $cursor-color != null {
+		--hub-spreadsheet-cursor-color: #{$cursor-color};
+	}
+	@if $cursor-width != null {
+		--hub-spreadsheet-cursor-width: #{$cursor-width};
+	}
+	@if $selection-bg != null {
+		--hub-spreadsheet-selection-bg: #{$selection-bg};
+	}
+
+	// Writing a formula
+	@if $suggestions-bg != null {
+		--hub-spreadsheet-suggestions-bg: #{$suggestions-bg};
+	}
+	@if $suggestions-border-color != null {
+		--hub-spreadsheet-suggestions-border-color: #{$suggestions-border-color};
+	}
+	@if $suggestion-on-bg != null {
+		--hub-spreadsheet-suggestion-on-bg: #{$suggestion-on-bg};
+	}
+	@if $alias-bg != null {
+		--hub-spreadsheet-alias-bg: #{$alias-bg};
+	}
+	@if $alias-color != null {
+		--hub-spreadsheet-alias-color: #{$alias-color};
+	}
+	@if $token-function-color != null {
+		--hub-spreadsheet-token-function-color: #{$token-function-color};
+	}
+	@if $token-column-color != null {
+		--hub-spreadsheet-token-column-color: #{$token-column-color};
+	}
+	@if $token-coordinate-color != null {
+		--hub-spreadsheet-token-coordinate-color: #{$token-coordinate-color};
+	}
+	@if $token-text-color != null {
+		--hub-spreadsheet-token-text-color: #{$token-text-color};
+	}
+
+	// The structural menu
+	@if $menu-bg != null {
+		--hub-spreadsheet-menu-bg: #{$menu-bg};
+	}
+	@if $menu-color != null {
+		--hub-spreadsheet-menu-color: #{$menu-color};
+	}
+	@if $menu-border-color != null {
+		--hub-spreadsheet-menu-border-color: #{$menu-border-color};
+	}
+	@if $menu-radius != null {
+		--hub-spreadsheet-menu-radius: #{$menu-radius};
+	}
+	@if $menu-shadow != null {
+		--hub-spreadsheet-menu-shadow: #{$menu-shadow};
+	}
+	@if $menu-item-padding-x != null {
+		--hub-spreadsheet-menu-item-padding-x: #{$menu-item-padding-x};
+	}
+	@if $menu-item-padding-y != null {
+		--hub-spreadsheet-menu-item-padding-y: #{$menu-item-padding-y};
+	}
+	@if $menu-item-bg-hover != null {
+		--hub-spreadsheet-menu-item-bg-hover: #{$menu-item-bg-hover};
+	}
+
+	// Dragging and resizing columns
+	@if $resize-grip-width != null {
+		--hub-spreadsheet-resize-grip-width: #{$resize-grip-width};
+	}
+	@if $resize-grip-color != null {
+		--hub-spreadsheet-resize-grip-color: #{$resize-grip-color};
+	}
+	@if $moving-opacity != null {
+		--hub-spreadsheet-moving-opacity: #{$moving-opacity};
+	}
+
+	// The fill handle
+	@if $fill-handle-size != null {
+		--hub-spreadsheet-fill-handle-size: #{$fill-handle-size};
+	}
+	@if $fill-handle-color != null {
+		--hub-spreadsheet-fill-handle-color: #{$fill-handle-color};
+	}
+	@if $fill-preview-bg != null {
+		--hub-spreadsheet-fill-preview-bg: #{$fill-preview-bg};
+	}
+
+	// What a cell opens onto, and its hint
+	@if $affordance-color != null {
+		--hub-spreadsheet-affordance-color: #{$affordance-color};
+	}
+	@if $affordance-size != null {
+		--hub-spreadsheet-affordance-size: #{$affordance-size};
+	}
+	@if $affordance-gap != null {
+		--hub-spreadsheet-affordance-gap: #{$affordance-gap};
+	}
+	@if $affordance-field-border != null {
+		--hub-spreadsheet-affordance-field-border: #{$affordance-field-border};
+	}
+	@if $placeholder-color != null {
+		--hub-spreadsheet-placeholder-color: #{$placeholder-color};
+	}
+	@if $placeholder-opacity != null {
+		--hub-spreadsheet-placeholder-opacity: #{$placeholder-opacity};
+	}
+	@if $placeholder-transition != null {
+		--hub-spreadsheet-placeholder-transition: #{$placeholder-transition};
+	}
+
+	// Cells nobody can type into
+	@if $readonly-bg != null {
+		--hub-spreadsheet-readonly-bg: #{$readonly-bg};
+	}
+	@if $readonly-color != null {
+		--hub-spreadsheet-readonly-color: #{$readonly-color};
+	}
+
+	// The editor
+	@if $editor-bg != null {
+		--hub-spreadsheet-editor-bg: #{$editor-bg};
+	}
+	@if $editor-color != null {
+		--hub-spreadsheet-editor-color: #{$editor-color};
+	}
+	@if $editor-field-bg != null {
+		--hub-spreadsheet-editor-field-bg: #{$editor-field-bg};
+	}
+	@if $editor-field-border-color != null {
+		--hub-spreadsheet-editor-field-border-color: #{$editor-field-border-color};
+	}
+	@if $editor-field-border-radius != null {
+		--hub-spreadsheet-editor-field-border-radius: #{$editor-field-border-radius};
+	}
+	@if $editor-field-focus-shadow != null {
+		--hub-spreadsheet-editor-field-focus-shadow: #{$editor-field-focus-shadow};
+	}
+
+	// A cell that is wrong
+	@if $invalid-color != null {
+		--hub-spreadsheet-invalid-color: #{$invalid-color};
+	}
+	@if $invalid-border-width != null {
+		--hub-spreadsheet-invalid-border-width: #{$invalid-border-width};
+	}
+	@if $invalid-bg != null {
+		--hub-spreadsheet-invalid-bg: #{$invalid-bg};
+	}
+
+	// Save state
+	@if $state-pending-color != null {
+		--hub-spreadsheet-state-pending-color: #{$state-pending-color};
+	}
+	@if $state-saving-color != null {
+		--hub-spreadsheet-state-saving-color: #{$state-saving-color};
+	}
+	@if $state-saved-color != null {
+		--hub-spreadsheet-state-saved-color: #{$state-saved-color};
+	}
+	@if $state-error-color != null {
+		--hub-spreadsheet-state-error-color: #{$state-error-color};
+	}
+	@if $state-conflict-color != null {
+		--hub-spreadsheet-state-conflict-color: #{$state-conflict-color};
+	}
+	@if $state-bar-width != null {
+		--hub-spreadsheet-state-bar-width: #{$state-bar-width};
+	}
+
+	// Frozen panes
+	@if $frozen-divider-color != null {
+		--hub-spreadsheet-frozen-divider-color: #{$frozen-divider-color};
+	}
+	@if $frozen-divider-width != null {
+		--hub-spreadsheet-frozen-divider-width: #{$frozen-divider-width};
+	}
+}
+// scss-docs-end hub-spreadsheet-theme

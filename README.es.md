@@ -77,14 +77,14 @@ Esa separación es deliberada. Es lo que permite que el mismo componente sirva p
 
 - **Dos identidades por columna.** Un alias estable al que apunta todo lo que se guarda, y una cabecera visible que puedes reescribir cuando quieras sin romper ni una referencia.
 - **El teclado de edición de Excel**, hasta en los detalles: escribir sustituye, `F2` conserva, `Intro` confirma y baja, `Tab` confirma y avanza, `Escape` revierte.
-- **Selección rectangular** con mayúsculas y flechas, con mayúsculas y clic, o arrastrando.
+- **Selección rectangular** con mayúsculas y flechas, con mayúsculas y clic, o arrastrando, y **varios bloques a la vez** con `Ctrl` pulsado. `Supr` vacía todos; copiar funciona cuando los bloques se alinean y se rechaza cuando no, igual que lo rechaza una hoja de cálculo.
 - **Un portapapeles que de verdad va y viene con Excel.** Escribe los dos formatos, lee los dos, y recupera el número crudo del HTML, así que una cifra copiada donde se escribe `1.234,56` llega como `1234.56`.
 - **Paneles congelados**, contados desde el borde como los congela Excel.
 - **Cinco estados de guardado por celda**, dibujados como una barra y no como una insignia.
 - **Salida estructurada por alias**: `{ price: 12, units: 3 }`, no una rejilla de coordenadas.
 - **Semántica de rejilla real** —`role="grid"`, índices de fila y columna, `aria-selected`, una parada de tabulación que viaja— para que un lector de pantalla pueda recorrerla.
 - **A prueba de métodos de escritura.** El `Intro` que confirma un carácter chino, japonés o coreano no confirma la celda.
-- **63 variables CSS** que heredan de `--hub-table-*` antes de caer en el sistema de diseño.
+- **67 variables CSS** que heredan de `--hub-table-*` antes de caer en el sistema de diseño.
 - **Salida a un `.xlsx` de verdad y vuelta**, con los números como números y las fechas como fechas — y a CSV, con el separador que espera el idioma de quien lo abre. El zip y el XML se escriben aquí, así que exportar no trae ninguna dependencia.
 - **Sin `@angular/cdk`.** Las primitivas de rejilla están en `ng-hub-ui-utils`.
 
@@ -276,52 +276,55 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 
 ### Entradas
 
-| Entrada              | Tipo                                      | Por defecto      | Descripción                                                                |
-| -------------------- | ----------------------------------------- | ---------------- | -------------------------------------------------------------------------- |
-| `rows`               | `readonly TRow[]`                         | —                | **Obligatoria.** Las filas. Nunca se escriben.                             |
-| `columns`            | `readonly HubSpreadsheetColumn<TRow>[]`   | —                | **Obligatoria.** Qué muestra y qué permite cada columna.                   |
-| `rowKey`             | `(row: TRow) => string`                   | —                | **Obligatoria.** Un nombre estable por fila.                               |
-| `states`             | `Record<string, HubSpreadsheetCellState>` | `{}`             | Estado de guardado por celda, con clave `` `${rowKey}\t${columnKey}` ``.   |
-| `errors`             | `Record<string, string>`                  | `{}`             | Un mensaje de validación por celda, con la misma clave. Marca la celda.    |
-| `decimalMark`        | `',' \| '.'`                              | `','`            | Con qué carácter escribe los decimales este lector.                        |
-| `emptyText`          | `string`                                  | `''`             | Qué dice una hoja vacía.                                                   |
-| `pageSize`           | `number`                                  | `10`             | Filas que recorren `Re Pág` y `Av Pág`.                                    |
-| `readonly`           | `boolean`                                 | `false`          | Desactiva todos los editores, digan lo que digan las celdas.               |
-| `formulas`           | `boolean`                                 | `false`          | Lee como fórmula la celda que empieza por `=`. Ver abajo.                  |
-| `editOn`             | `'click' \| 'double-click'`               | `'double-click'` | Qué abre el editor con el puntero. Escribir lo abre en ambos casos.        |
-| `frozenColumns`      | `number`                                  | `0`              | Cuántas columnas quedan fijadas al margen inicial.                         |
-| `frozenRows`         | `number`                                  | `0`              | Cuántas filas quedan fijadas bajo la cabecera.                             |
-| `virtual`            | `boolean`                                 | `false`          | Dibuja solo las filas a la vista. Le da altura a la hoja; ver abajo.       |
-| `rowHeight`          | `number`                                  | `0`              | Cuánto mide una fila al virtualizar. Cero mide la primera dibujada.        |
-| `spans`              | `readonly HubGridSpan[]`                  | `[]`             | Bloques combinados, declarados por su ancla.                               |
-| `structure`          | `HubSpreadsheetStructureOptions<TRow>`    | `{}`             | Qué cambios de estructura se ofrecen. Todo se rechaza por defecto.         |
-| `retiredColumnKeys`  | `readonly string[]`                       | `[]`             | Alias de columnas borradas, para que uno nuevo no los reutilice.           |
-| `contextMenu`        | `boolean`                                 | `false`          | Ofrece los cambios de estructura con el botón derecho.                     |
-| `mergeable`          | `boolean`                                 | `false`          | Ofrece combinar celdas y separarlas en ese mismo menú.                     |
-| `fillHandle`         | `boolean`                                 | `false`          | Dibuja el tirador en la esquina de la selección.                           |
-| `canUndo`            | `boolean`                                 | `false`          | Si `Ctrl+Z` tiene algo que pedir. El histórico es del anfitrión.           |
-| `canRedo`            | `boolean`                                 | `false`          | Lo mismo para `Ctrl+Mayús+Z` y `Ctrl+Y`.                                   |
-| `resizableColumns`   | `boolean`                                 | `false`          | Permite arrastrar el borde final de una cabecera.                          |
-| `reorderableColumns` | `boolean`                                 | `false`          | Permite arrastrar una cabecera para mover su columna.                      |
-| `columnWidths`       | `Record<string, number>`                  | `{}`             | De doble vía. Anchos por alias, así uno sobrevive a que muevan su columna. |
-| `minColumnWidth`     | `number`                                  | `48`             | El suelo por debajo del cual no baja un arrastre, en píxeles.              |
+| Entrada              | Tipo                                      | Por defecto      | Descripción                                                                   |
+| -------------------- | ----------------------------------------- | ---------------- | ----------------------------------------------------------------------------- |
+| `rows`               | `readonly TRow[]`                         | —                | **Obligatoria.** Las filas. Nunca se escriben.                                |
+| `columns`            | `readonly HubSpreadsheetColumn<TRow>[]`   | —                | **Obligatoria.** Qué muestra y qué permite cada columna.                      |
+| `rowKey`             | `(row: TRow) => string`                   | —                | **Obligatoria.** Un nombre estable por fila.                                  |
+| `states`             | `Record<string, HubSpreadsheetCellState>` | `{}`             | Estado de guardado por celda, con clave `` `${rowKey}\t${columnKey}` ``.      |
+| `errors`             | `Record<string, string>`                  | `{}`             | Un mensaje de validación por celda, con la misma clave. Marca la celda.       |
+| `decimalMark`        | `',' \| '.'`                              | `','`            | Con qué carácter escribe los decimales este lector.                           |
+| `emptyText`          | `string`                                  | `''`             | Qué dice una hoja vacía.                                                      |
+| `pageSize`           | `number`                                  | `10`             | Filas que recorren `Re Pág` y `Av Pág`.                                       |
+| `readonly`           | `boolean`                                 | `false`          | Desactiva todos los editores, digan lo que digan las celdas.                  |
+| `formulas`           | `boolean`                                 | `false`          | Lee como fórmula la celda que empieza por `=`. Ver abajo.                     |
+| `editOn`             | `'click' \| 'double-click'`               | `'double-click'` | Qué abre el editor con el puntero. Escribir lo abre en ambos casos.           |
+| `direction`          | `'auto' \| 'ltr' \| 'rtl'`                | `'auto'`         | Hacia dónde corre la hoja. `auto` sigue a la página; las otras dos la fuerzan. |
+| `frozenColumns`      | `number`                                  | `0`              | Cuántas columnas quedan fijadas al margen inicial.                            |
+| `frozenRows`         | `number`                                  | `0`              | Cuántas filas quedan fijadas bajo la cabecera.                                |
+| `virtual`            | `boolean`                                 | `false`          | Dibuja solo las filas a la vista. Le da altura a la hoja; ver abajo.          |
+| `rowHeight`          | `number`                                  | `0`              | Cuánto mide una fila al virtualizar. Cero mide la primera dibujada.           |
+| `spans`              | `readonly HubGridSpan[]`                  | `[]`             | Bloques combinados, declarados por su ancla.                                  |
+| `structure`          | `HubSpreadsheetStructureOptions<TRow>`    | `{}`             | Qué cambios de estructura se ofrecen. Todo se rechaza por defecto.            |
+| `retiredColumnKeys`  | `readonly string[]`                       | `[]`             | Alias de columnas borradas, para que uno nuevo no los reutilice.              |
+| `contextMenu`        | `boolean`                                 | `false`          | Ofrece los cambios de estructura con el botón derecho.                        |
+| `mergeable`          | `boolean`                                 | `false`          | Ofrece combinar celdas y separarlas en ese mismo menú.                        |
+| `disjointSelection`  | `boolean`                                 | `true`           | Si con `Ctrl` pulsado un clic añade otro bloque en lugar de empezar de nuevo. |
+| `fillHandle`         | `boolean`                                 | `false`          | Dibuja el tirador en la esquina de la selección.                              |
+| `canUndo`            | `boolean`                                 | `false`          | Si `Ctrl+Z` tiene algo que pedir. El histórico es del anfitrión.              |
+| `canRedo`            | `boolean`                                 | `false`          | Lo mismo para `Ctrl+Mayús+Z` y `Ctrl+Y`.                                      |
+| `resizableColumns`   | `boolean`                                 | `false`          | Permite arrastrar el borde final de una cabecera.                             |
+| `reorderableColumns` | `boolean`                                 | `false`          | Permite arrastrar una cabecera para mover su columna.                         |
+| `columnWidths`       | `Record<string, number>`                  | `{}`             | De doble vía. Anchos por alias, así uno sobrevive a que muevan su columna.    |
+| `minColumnWidth`     | `number`                                  | `48`             | El suelo por debajo del cual no baja un arrastre, en píxeles.                 |
 
 ### Salidas
 
-| Salida             | Carga                           | Se emite cuando                                                |
-| ------------------ | ------------------------------- | -------------------------------------------------------------- |
-| `commit`           | `HubSpreadsheetCommit<TRow>`    | Una celda toma un valor nuevo, distinto del anterior.          |
-| `pasted`           | `HubSpreadsheetPaste<TRow>`     | Se pega un bloque.                                             |
-| `filled`           | `HubSpreadsheetPaste<TRow>`     | Se suelta el tirador de relleno.                               |
-| `cleared`          | `HubSpreadsheetCellRef<TRow>[]` | Se pulsa `Supr` sobre una selección.                           |
-| `selectionChange`  | `HubGridRange \| null`          | Cambia el rectángulo seleccionado.                             |
-| `insertRequested`  | `HubSpreadsheetInsertRequest`   | El lector pide añadir filas o columnas.                        |
-| `deleteRequested`  | `HubSpreadsheetDeleteRequest`   | El lector pide quitar filas o columnas.                        |
-| `undoRequested`    | `void`                          | `Ctrl+Z`. La hoja no deshace nada por su cuenta.               |
-| `redoRequested`    | `void`                          | `Ctrl+Mayús+Z` o `Ctrl+Y`.                                     |
-| `columnMoved`      | `{ from, to, key, keys }`       | Se suelta una cabecera. `keys` llega ya reordenado.            |
-| `mergeRequested`   | `HubSpreadsheetMergeRequest`    | El lector pide combinar una selección. Incluye lo que absorbe. |
-| `unmergeRequested` | `readonly HubGridCoords[]`      | El lector pide separar los bloques que toca su selección.      |
+| Salida                  | Carga                           | Se emite cuando                                                                            |
+| ----------------------- | ------------------------------- | ------------------------------------------------------------------------------------------ |
+| `commit`                | `HubSpreadsheetCommit<TRow>`    | Una celda toma un valor nuevo, distinto del anterior.                                      |
+| `pasted`                | `HubSpreadsheetPaste<TRow>`     | Se pega un bloque.                                                                         |
+| `filled`                | `HubSpreadsheetPaste<TRow>`     | Se suelta el tirador de relleno.                                                           |
+| `cleared`               | `HubSpreadsheetCellRef<TRow>[]` | Se pulsa `Supr` sobre una selección.                                                       |
+| `selectionChange`       | `HubGridRange \| null`          | Cambia el rectángulo seleccionado.                                                         |
+| `selectionRangesChange` | `readonly HubGridRange[]`       | Cambia la selección entera. Un solo elemento salvo que se hayan cogido bloques con `Ctrl`. |
+| `insertRequested`       | `HubSpreadsheetInsertRequest`   | El lector pide añadir filas o columnas.                                                    |
+| `deleteRequested`       | `HubSpreadsheetDeleteRequest`   | El lector pide quitar filas o columnas.                                                    |
+| `undoRequested`         | `void`                          | `Ctrl+Z`. La hoja no deshace nada por su cuenta.                                           |
+| `redoRequested`         | `void`                          | `Ctrl+Mayús+Z` o `Ctrl+Y`.                                                                 |
+| `columnMoved`           | `{ from, to, key, keys }`       | Se suelta una cabecera. `keys` llega ya reordenado.                                        |
+| `mergeRequested`        | `HubSpreadsheetMergeRequest`    | El lector pide combinar una selección. Incluye lo que absorbe.                             |
+| `unmergeRequested`      | `readonly HubGridCoords[]`      | El lector pide separar los bloques que toca su selección.                                  |
 
 ### Ayudantes
 
@@ -547,6 +550,24 @@ Se tematiza poniendo variables en cualquier ancestro:
 ```
 
 Cada valor pasa por `--hub-table-*` antes que por `--hub-sys-*`, así que un proyecto que ya haya tematizado sus tablas con `ng-hub-ui-paginable` recibe sus hojas pintadas a juego sin tocar nada.
+
+O en un solo include, que es lo mismo dicho en Sass:
+
+```scss
+@use 'ng-hub-ui-spreadsheet/styles' as sheet;
+
+.lineas-factura {
+	@include sheet.hub-spreadsheet-theme(
+		$cursor-color: #6f42c1,
+		$cell-padding-y: 0.125rem,
+		$cell-line-height: 1.2,
+		$max-block-size: 60vh
+	);
+}
+```
+
+Todos los parámetros son opcionales y solo se emite lo que se pasa, así que el resto siguen cayendo
+por la cadena. Úsalo para lo que un tema de tabla no cubra ya, no para repetirlo.
 
 Catálogo completo: [`docs/css-variables-reference.md`](./docs/css-variables-reference.md).
 

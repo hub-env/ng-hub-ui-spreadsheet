@@ -1,6 +1,6 @@
 import { Component, ViewContainerRef, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { HubGridCoords, HubGridSpan, provideHubTranslation } from 'ng-hub-ui-utils';
+import { HubGridCoords, HubGridRange, HubGridSpan, provideHubTranslation } from 'ng-hub-ui-utils';
 import { locale as enLocale } from '../../assets/i18n/en';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HubSpreadsheetColumn, HubSpreadsheetCommit, HubSpreadsheetPaste } from '../../models/spreadsheet.types';
@@ -43,12 +43,14 @@ function lines(): Line[] {
 			[frozenRows]="frozenRows()"
 			[spans]="spans()"
 			[fillHandle]="fillHandle()"
+			[disjointSelection]="disjointSelection()"
 			[contextMenu]="contextMenu()"
 			[mergeable]="mergeable()"
 			[formulas]="formulas()"
 			[virtual]="virtual()"
 			[rowHeight]="rowHeight()"
 			[editOn]="editOn()"
+			[direction]="direction()"
 			[resizableColumns]="resizableColumns()"
 			[reorderableColumns]="reorderableColumns()"
 			[(columnWidths)]="columnWidths"
@@ -58,6 +60,7 @@ function lines(): Line[] {
 			(commit)="commits.push($event)"
 			(pasted)="pastes.push($event)"
 			(cleared)="cleared.push($event)"
+			(selectionRangesChange)="ranges = $event"
 			(filled)="fills.push($event)"
 			(columnMoved)="moves.push($event)"
 			(undoRequested)="undos = undos + 1"
@@ -79,12 +82,14 @@ class HostComponent {
 	readonly frozenRows = signal(0);
 	readonly spans = signal<HubGridSpan[]>([]);
 	readonly fillHandle = signal(false);
+	readonly disjointSelection = signal(true);
 	readonly contextMenu = signal(false);
 	readonly mergeable = signal(false);
 	readonly formulas = signal(false);
 	readonly virtual = signal(false);
 	readonly rowHeight = signal(0);
 	readonly editOn = signal<'click' | 'double-click'>('double-click');
+	readonly direction = signal<'auto' | 'ltr' | 'rtl'>('auto');
 	readonly resizableColumns = signal(false);
 	readonly reorderableColumns = signal(false);
 	readonly columnWidths = signal<Record<string, number>>({});
@@ -110,6 +115,7 @@ class HostComponent {
 	redos = 0;
 	pastes: HubSpreadsheetPaste<Line>[] = [];
 	cleared: unknown[] = [];
+	ranges: readonly HubGridRange[] = [];
 	inserts: unknown[] = [];
 	deletes: unknown[] = [];
 	merges: HubSpreadsheetMergeRequest[] = [];
@@ -238,6 +244,21 @@ describe('HubSpreadsheetComponent', () => {
 			expect(cell(0, 1).getAttribute('data-state')).toBe('saving');
 			expect(cell(0, 1).getAttribute('aria-busy')).toBe('true');
 		});
+
+		it('runs the way it is told, and leaves it to the page when told nothing', () => {
+			const sheet: HTMLElement = fixture.nativeElement.querySelector('hub-spreadsheet');
+
+			// Left to the page: no `dir` of its own, so whatever it inherited is what it runs.
+			expect(sheet.getAttribute('dir')).toBeNull();
+
+			host.direction.set('rtl');
+			fixture.detectChanges();
+			expect(sheet.getAttribute('dir')).toBe('rtl');
+
+			host.direction.set('ltr');
+			fixture.detectChanges();
+			expect(sheet.getAttribute('dir')).toBe('ltr');
+		});
 	});
 
 	describe('the cursor never spills out of its cell', () => {
@@ -350,6 +371,101 @@ describe('HubSpreadsheetComponent', () => {
 		});
 	});
 
+	describe('picking more than one block', () => {
+		it('keeps what was picked when the next click is held with Ctrl', () => {
+			fullClick(0, 0);
+			fullClick(2, 0, { ctrlKey: true });
+
+			expect(cell(0, 0).getAttribute('aria-selected')).toBe('true');
+			expect(cell(2, 0).getAttribute('aria-selected')).toBe('true');
+			expect(cell(1, 0).getAttribute('aria-selected')).toBe('false');
+		});
+
+		it('reports every rectangle, and the cursor stays in the last one', () => {
+			fullClick(0, 0);
+			fullClick(2, 1, { ctrlKey: true });
+
+			expect(host.ranges).toHaveLength(2);
+			expect(host.ranges[host.ranges.length - 1]).toEqual({ top: 2, bottom: 2, left: 1, right: 1 });
+		});
+
+		it('starts again on an ordinary click', () => {
+			fullClick(0, 0);
+			fullClick(2, 0, { ctrlKey: true });
+			fullClick(1, 1);
+
+			expect(host.ranges).toHaveLength(1);
+			expect(cell(0, 0).getAttribute('aria-selected')).toBe('false');
+			expect(cell(2, 0).getAttribute('aria-selected')).toBe('false');
+		});
+
+		it('starts again when the cursor walks', () => {
+			fullClick(0, 0);
+			fullClick(2, 0, { ctrlKey: true });
+			press('ArrowUp');
+
+			expect(host.ranges).toHaveLength(1);
+			expect(cell(0, 0).getAttribute('aria-selected')).toBe('false');
+		});
+
+		it('takes the modifier for an ordinary click when the host turns it off', () => {
+			host.disjointSelection.set(false);
+			fixture.detectChanges();
+
+			fullClick(0, 0);
+			fullClick(2, 0, { ctrlKey: true });
+
+			expect(host.ranges).toHaveLength(1);
+			expect(cell(0, 0).getAttribute('aria-selected')).toBe('false');
+		});
+
+		it('empties every rectangle on Delete', () => {
+			fullClick(0, 0);
+			fullClick(2, 0, { ctrlKey: true });
+			press('Delete');
+
+			// Two cells of the product column, both holding something.
+			expect((host.cleared[0] as unknown[]).length).toBe(2);
+		});
+
+		it('drops the fill handle, because a fill continues one rectangle', () => {
+			host.fillHandle.set(true);
+			fixture.detectChanges();
+
+			fullClick(0, 0);
+
+			expect(cell(0, 0).querySelector('.hub-spreadsheet__fill-handle')).not.toBeNull();
+
+			fullClick(2, 0, { ctrlKey: true });
+
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__fill-handle')).toBeNull();
+		});
+
+		it('copies rectangles that line up, as one table', () => {
+			fullClick(0, 0);
+			fullClick(2, 0, { ctrlKey: true });
+
+			const event = clipboardEvent('copy', {});
+			fixture.nativeElement.querySelector('.hub-spreadsheet__table').dispatchEvent(event);
+
+			const text = written(event).mock.calls.find((call) => call[0] === 'text/plain')?.[1];
+
+			expect(text).toBe('Tornillo\nTuerca');
+		});
+
+		it('refuses to copy rectangles that make no table', () => {
+			fullClick(0, 0);
+			fullClick(2, 1, { ctrlKey: true });
+
+			const event = clipboardEvent('copy', {});
+			fixture.nativeElement.querySelector('.hub-spreadsheet__table').dispatchEvent(event);
+
+			// Nothing written and the clipboard left alone, which is what a spreadsheet does rather
+			// than inventing a shape the reader never chose.
+			expect(written(event)).not.toHaveBeenCalled();
+		});
+	});
+
 	describe('the keyboard', () => {
 		it('puts the only tab stop on the first cell before anything is picked', () => {
 			expect(cell(0, 0).getAttribute('tabindex')).toBe('0');
@@ -394,6 +510,34 @@ describe('HubSpreadsheetComponent', () => {
 			press('F2');
 
 			expect(editor()?.value).toBe('Tornillo');
+		});
+
+		it('shows the column letters and the row numbers while a cell is open, and not otherwise', () => {
+			// Nothing before a cell is opened: the coordinates are an editing aid, not decoration
+			// laid over the sheet the rest of the time.
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__coord')).toBeNull();
+
+			openCell(0, 0);
+
+			const letters = (
+				Array.from(fixture.nativeElement.querySelectorAll('.hub-spreadsheet__coord-letter')) as HTMLElement[]
+			).map((node) => node.textContent!.trim());
+			const numbers = (
+				Array.from(fixture.nativeElement.querySelectorAll('.hub-spreadsheet__coord--row')) as HTMLElement[]
+			).map((node) => node.textContent!.trim());
+
+			expect(letters).toEqual(['A', 'B', 'C']);
+			expect(numbers).toEqual(['1', '2', '3']);
+		});
+
+		it('hangs the row number off the row it names, out in the gutter', () => {
+			openCell(0, 0);
+
+			// Inside the first column's cell, which is the row it belongs to; the badge itself is
+			// positioned out over the room the shifted table left.
+			const first = cell(0, 0).querySelector('.hub-spreadsheet__coord--row');
+
+			expect(first?.textContent?.trim()).toBe('1');
 		});
 
 		it('types over the cell when a character arrives', () => {
@@ -1021,23 +1165,22 @@ describe('HubSpreadsheetComponent', () => {
 			expect(offered).toContain('units');
 		});
 
-		it('shows every column its alias while a formula is being written, and not otherwise', () => {
+		it('shows every column its alias while a cell is open, and not otherwise', () => {
 			host.formulas.set(true);
 			fixture.detectChanges();
 
-			expect(fixture.nativeElement.querySelectorAll('.hub-spreadsheet__alias')).toHaveLength(0);
+			expect(fixture.nativeElement.querySelectorAll('.hub-spreadsheet__coord-alias')).toHaveLength(0);
 
 			click(0, 0);
 			press('=');
 
-			const chips = Array.from(fixture.nativeElement.querySelectorAll('.hub-spreadsheet__alias')).map((node) =>
+			const chips = Array.from(fixture.nativeElement.querySelectorAll('.hub-spreadsheet__coord-alias')).map((node) =>
 				(node as HTMLElement).textContent!.trim()
 			);
 
-			// The letter and the alias, because both can be typed and a reader coming from a
-			// spreadsheet looks for the letter. The bar between them is drawn by the stylesheet,
-			// which is why it is not in the text.
-			expect(chips).toEqual(['A product', 'B units', 'C total']);
+			// The badge over each column carries the letter and the alias, because both can be typed
+			// and a reader coming from a spreadsheet looks for the letter.
+			expect(chips).toEqual(['product', 'units', 'total']);
 		});
 
 		it('takes the first suggestion as chosen the moment there is a word being typed', () => {
@@ -1087,6 +1230,126 @@ describe('HubSpreadsheetComponent', () => {
 			fixture.detectChanges();
 
 			expect(editor()?.value).toBe('=SUM(');
+		});
+
+		it('hangs the list of suggestions off the host, clear of the scroll area', () => {
+			host.formulas.set(true);
+			fixture.detectChanges();
+			click(0, 0);
+			press('=');
+
+			const list: HTMLElement = fixture.nativeElement.querySelector('.hub-spreadsheet__suggestions');
+
+			// Inside the viewport the list was clipped at the scroll edge, and on the last row — the
+			// row a total is written in — it fell below it and was never seen. It hangs off the host,
+			// outside the scroll area.
+			expect(list).not.toBeNull();
+			expect(list.closest('.hub-spreadsheet__viewport')).toBeNull();
+		});
+
+		it('does not offer the list when the cell opens a list rather than a field', () => {
+			host.formulas.set(true);
+			host.columns.update((columns) => [
+				...columns,
+				{
+					key: 'status',
+					header: 'Estado',
+					kind: 'select' as const,
+					options: [{ value: 'draft', label: 'Borrador' }],
+					// The value is not one of the options, so opening the cell puts it in the draft
+					// whole — an equals sign and all, which is what used to raise the list.
+					cell: () => ({ value: '=SUM', editable: true })
+				}
+			]);
+			fixture.detectChanges();
+
+			openCell(0, 3);
+
+			// The cell is open on its list, holding what used to raise the suggestions — and none
+			// are raised, because the list owns the keystrokes and the formula language is not what
+			// is being typed there.
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__editor--select')).not.toBeNull();
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__suggestions')).toBeNull();
+		});
+
+		it('colours the formula by what each piece of it is', () => {
+			host.formulas.set(true);
+			fixture.detectChanges();
+			click(0, 0);
+			press('=');
+
+			const field = editor()!;
+
+			field.value = '=ROUND([total] * 0.21, 2)';
+			field.dispatchEvent(new Event('input', { bubbles: true }));
+			fixture.detectChanges();
+
+			const nodes = Array.from(
+				fixture.nativeElement.querySelectorAll('.hub-spreadsheet__tokens .hub-spreadsheet__token')
+			) as HTMLElement[];
+
+			// The copy rebuilds the text exactly, which is what lets it be drawn under the field.
+			expect(nodes.map((node) => node.textContent).join('')).toBe('=ROUND([total] * 0.21, 2)');
+			expect(nodes.map((node) => node.className)).toEqual(
+				expect.arrayContaining([
+					expect.stringContaining('hub-spreadsheet__token--equals'),
+					expect.stringContaining('hub-spreadsheet__token--function'),
+					expect.stringContaining('hub-spreadsheet__token--column'),
+					expect.stringContaining('hub-spreadsheet__token--number'),
+					expect.stringContaining('hub-spreadsheet__token--operator'),
+					expect.stringContaining('hub-spreadsheet__token--separator')
+				])
+			);
+
+			// The field keeps the text for the clipboard and the screen reader; it is drawn from the
+			// copy, so it is made to show nothing itself.
+			expect(field.value).toBe('=ROUND([total] * 0.21, 2)');
+			expect(field.classList).toContain('hub-spreadsheet__editor--coloured');
+		});
+
+		it('writes a reference into the formula when a cell is pointed at', () => {
+			host.formulas.set(true);
+			fixture.detectChanges();
+			click(0, 0);
+			press('=');
+
+			// A whole click on another cell, without leaving the editor: the cell is pointed at, and
+			// its address goes into what is being written rather than committing it.
+			fullClick(1, 2);
+
+			expect(editor()?.value).toBe('=C2');
+		});
+
+		it('writes a rectangle when the pointer is dragged across cells', () => {
+			host.formulas.set(true);
+			fixture.detectChanges();
+			click(0, 0);
+			press('=');
+
+			click(0, 1);
+			cell(1, 1).dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+			cell(1, 2).dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+			fixture.detectChanges();
+			cell(1, 2).dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+			fixture.detectChanges();
+
+			expect(editor()?.value).toBe('=B1:C2');
+		});
+
+		it('gives up a pointing gesture on Escape, leaving the formula as it was', () => {
+			host.formulas.set(true);
+			fixture.detectChanges();
+			click(0, 0);
+			press('=');
+
+			click(1, 1);
+			editor()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+			cell(1, 1).dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+			fixture.detectChanges();
+
+			// The editor is still open, with the formula untouched — Escape ended the gesture, not
+			// the editing.
+			expect(editor()?.value).toBe('=');
 		});
 
 		it('leaves the text alone when the sheet was not asked to read formulas', () => {
