@@ -1,0 +1,188 @@
+# Changelog
+
+## [22.0.0] - 2026-09-27
+
+First release. An editable sheet of cells for Angular, built on primitives that live in
+`ng-hub-ui-utils` rather than on `@angular/cdk`, so installing it adds nothing outside Angular
+itself.
+
+### Added
+
+- **`<hub-spreadsheet>`.** Cells typed into, moved through with the keyboard and pasted into from
+  a spreadsheet. The component never writes to the rows it is given: it reports what the reader
+  did and the owner decides what to do about it, which is what lets the same component serve an
+  invoice, a price list and a timesheet.
+- **Formulas, written against the aliases.** `formulas` reads a cell whose value starts with `=`
+  as one: `=[units] * [price] * (1 - [discount])`, `=ROUND(SUM([total:]), 2)`. Columns are named by
+  the alias they were declared with, which is what the aliases were for — reorder the columns or
+  rewrite a header and every formula still means what it said. Arithmetic,
+  comparison, text joining, `IF`, `SUM`, `AVERAGE`, `MIN`, `MAX`, `COUNT`, `ROUND`, `ABS`, `AND`,
+  `OR`, `NOT`, `CONCAT` and `LEN`; an engine of the house's own, so there is no licence to inherit
+  and nothing to install. A colon reads a whole column, and leaves out the cell that is asking for
+  it: `=SUM([total:])` in the total row is what everybody writes, and taken literally it is a sum
+  that needs its own answer. Everything else that goes round in a circle is caught and shown as
+  `#CYCLE!` rather than chased. The cell shows the answer, the editor shows the formula so a
+  mistake is corrected rather than retyped, and a formula that cannot be worked out shows what a
+  spreadsheet shows — `#DIV/0!`, `#NAME?`, `#VALUE!` — with the cell marked.
+- **Coordinates too, and they move with the sheet.** `B3` and `SUM(A1:A4)` work as they do in a
+  spreadsheet, beside the aliases. A coordinate says _where_ a column was rather than which one it
+  is, so when the sheet changes shape the formulas have to change with it: `rewriteRowFormulas()`
+  moves every coordinate in the rows after a column is moved, or rows and columns are inserted or
+  deleted, and a reference to something that has been deleted becomes `#REF!` rather than quietly
+  reading its neighbour. Written by the host in its own handler, because the rows are the host's.
+- **The sheet says what can go in a formula.** Typing `=` brings up the functions and the columns,
+  narrowed as the reader types and put in with the arrows and Enter; inside brackets only columns
+  are offered, since a function cannot go there. At the same time every header shows the alias a
+  formula calls that column by, and a click on one writes it. Without that, writing a formula means
+  knowing a name the sheet never showed — the header carries a title meant for people, not the key
+  the formula needs, and that, not the language, is what makes a formula hard to write.
+- **A formula fixed on the column.** `columns[].formula` is the same formula in every row, declared
+  in code rather than held by the data: a line total, a tax, a running balance. Those cells cannot
+  be typed into at all, which is the point — a reader replacing one would lose the formula for that
+  row alone, and nobody notices until the totals stop adding up.
+- **Two identities per column.** `key` is what everything stored points at; `header` is what the
+  reader sees and may be rewritten at any time without touching a stored reference. Reading a
+  sheet back with `spreadsheetRecords()` yields plain objects keyed by `key`, so a consumer works
+  with `{ price: 12, units: 3 }` instead of mapping coordinates onto its own fields by position.
+- **Excel's editing keyboard.** Typing replaces the cell, `F2` and `Enter` open the editor keeping
+  the value, `Enter` and `Tab` commit and move on, `Escape` reverts, `Delete` empties the
+  selection. `Tab` walks sideways and falls onto the next row at the edge.
+- **Rectangular selection**, extended with shift and arrows, with shift-click, or by dragging.
+  `Ctrl+A`, `Ctrl+Space` and `Shift+Space` select the sheet, the column and the row.
+- **A clipboard that round-trips with Excel.** Copy writes both `text/plain` and `text/html`;
+  paste reads both and prefers the raw number the HTML carries, so a figure copied in a locale
+  that writes `1.234,56` arrives as 1234.56 rather than as text. Quoting is honoured in both
+  directions, so a cell holding a tab or a newline survives the journey.
+- **Only the rows in view, for a sheet that is long.** `virtual` draws the rows the viewport
+  covers and reserves the height of the rest, so the scrollbar still says how long the sheet is; a
+  merged block reaching into the window brings its anchor with it, or it would simply not be drawn
+  where a reader scrolled to. The keyboard keeps working across the boundary: the cursor moving to
+  a row that is not in the document moves the scroller first and lands on the row the next render
+  puts there. Off by default, and honest about the cost — the rows out of view are not in the
+  document, so the browser's own find and printing reach only what is drawn, and the rows have to
+  be of one height, measured unless `rowHeight` says otherwise. Turning it on also gives the sheet
+  a height, because a sheet left to grow is as tall as its content and then there is nothing to
+  virtualise at all. The columns are windowed the same way, from their measured widths: the first
+  render draws them all, since there is nothing to measure otherwise, and every render after that
+  draws the ones in view. One unknown width is enough to fall back to drawing the lot — a window is
+  only as honest as the sizes it is built from. A sheet of ten thousand rows and fifty-two columns
+  holds around two hundred cells instead of half a million.
+- **Out to a file, and back in.** `sheetToXlsx()` writes a real `.xlsx` — figures as figures, dates
+  as dates, the header row in bold — and `sheetToCsv()` writes the flat file for whoever wants to
+  read it in something older, choosing its separator from the decimal mark, because a file written
+  with commas where the comma is the decimal mark opens as a single column of text. Both write what
+  the cell shows rather than what the row holds, so a list column exports the label somebody chose
+  and a formula exports the number it came to; `values: 'stored'` is the other way round, for the
+  file that is meant to come back. Coming in, `xlsxToRecords()` and `csvToRecords()` return the
+  file's rows keyed by column alias, matched on the headings by header or by alias and ignoring
+  case, so a file whose columns were reordered still lands in the right place and a heading nothing
+  recognises is left alone rather than written into whatever column came next.
+    - Reading a workbook means undoing two things a CSV never does: a **shared string** is written
+      once and pointed at from every cell that holds it, and a **date** is a count of days wearing a
+      number format. Without either, a column of the same word arrives as a column of numbers and
+      15 January 2024 arrives as `45306`.
+    - **Neither direction brings a dependency.** The zip is written here, with its entries stored
+      rather than deflated — which the format has always allowed, which every reader accepts, and
+      which costs a file a few times larger than what Excel writes. Reading cannot do the same, since
+      a real workbook is deflated, so it uses the decompressor the platform already has
+      (`DecompressionStream`). Against that, a compression library every consumer of the sheet would
+      pay for whether they export anything or not.
+- **Frozen panes.** `frozenColumns` and `frozenRows` pin the first tracks, Excel's way, with the
+  offsets measured and a seam drawn on the last frozen one.
+- **A click picks the cell; typing opens it.** Selecting is the gesture a reader makes most — to
+  copy, to look, to drag out a range — so it leaves the value where it is, and the editor waits for
+  a double click, `F2`, `Enter`, or simply the first character typed, which opens the editor and
+  lands in it. `editOn: 'click'` opens on the first click instead, for a sheet that exists to be
+  typed into. Each kind then brings the editor it needs: a list for a column with options, a date
+  field, a checkbox that turns over in one go with no editor at all — and the list and the date
+  field come up already open, so choosing is the same gesture that opened the cell. The character
+  that opened it is never dropped: in a list it picks the first answer that starts with it, as a
+  native list does, and a supplied editor is handed it as `seed` so a picker can put it in its
+  search box. A date field is the exception, and deliberately: a letter is not a date, and keeping
+  it would commit rubbish on the way out. The cell the reader is on also says what it opens onto —
+  a caret for a list, a calendar for a date — shown on the cell in hand and on the one under the
+  pointer, never down the whole column, where it would read as content. That mark is the way in:
+  one click on it opens the cell, without the second the rest of the cell asks for, which is what a
+  spreadsheet does with a cell that holds a list. From the keyboard it is `Alt` and the down
+  arrow. The mark is the select's own caret — same geometry, same colour, same place, read from
+  `--hub-select-arrow-*` where the design system has them and falling through to the sheet's own
+  values where it does not — so nothing moves as the field opens over it, and the library still
+  depends on nothing but Angular and `ng-hub-ui-utils`. A column may also declare a `placeholder`, shown in an empty cell while
+  the pointer rests on it and never in place of a value.
+- **A control library wired once, instead of a template per column.**
+  `provideHubSpreadsheetControls(adapter)` registers a control adapter, and every list column opens
+  with it — searchable, already open, with the character that opened the cell in its search box.
+  The contract is declared here and satisfied structurally, so the library imports nothing and
+  installs on its own: with no adapter the sheet draws its native list, which is also what a phone
+  handles best. `ng-hub-ui-forms` ships an implementation that fits, `hubFormControlAdapter`, the
+  same one `ng-hub-ui-paginable` uses for its table controls. A column that needs something else
+  still declares `hubSpreadsheetEditor`, which is read first: a template written for one column
+  beats a rule for all of them.
+- **Cells of your own per column.** `hubSpreadsheetCell` draws what a column shows while it is not
+  being edited — a badge for a state, an avatar beside a name, a row of actions — and is the
+  sibling of `hubSpreadsheetEditor`, which covers the other half of a cell's life. Two things stay
+  the sheet's: the clipboard carries the value and not the drawing, so a copy round-trips as data,
+  and the cell is still what the keyboard is on, because the template is drawn inside it rather
+  than instead of it. Both directives take the rows through a `…Rows` input that nothing reads, so
+  the compiler knows what `row` is inside the template instead of handing it over as `unknown`.
+- **An editor of your own per column.** `hubSpreadsheetEditor="<alias>"` replaces the built-in one
+  with a template — a searchable `<hub-select>`, a picker of the house, anything that can report a
+  value. The template says when it has finished by calling `commit` or `cancel`, so a picker may
+  take as many clicks as it needs, and the sheet stays clear of any dependency on it. The keyboard
+  lands inside the supplied editor rather than staying on the grid; a `<hub-select>` shows its list
+  at once with its own `autoOpen`, which `ng-hub-ui-forms` 22.41 adds for exactly this. A control
+  put in a cell wears the cell: its border, its rounded corners and its focus ring are taken off
+  through the design system's variables, so the mark the reader sees is the cell's and not the
+  field's, and its text sits where the column's text sat a moment earlier. The mark is the same
+  thickness on all four sides while a cell is open, which took each cell declaring how thick its
+  own trailing borders are: an editor is laid out against the padding box, so it stopped short of
+  the border and the cell's mark showed underneath it as a second line a pixel lower. The row holds
+  its height while a cell of it is open, too: an editor is positioned out of the flow, so the cell
+  stood only as tall as its padding and a row whose other cells happened to be empty collapsed
+  under the hand that opened it.
+- **Five save states per cell** — `pending`, `saving`, `saved`, `error`, `conflict` — drawn as a
+  bar down the leading edge and reported to assistive technology through `aria-busy`.
+- **Structural change requests.** `insertRequested` and `deleteRequested` report what the reader
+  asked for, gated by `structure`, which refuses everything until told otherwise. `nextColumnKey()`
+  allocates an alias that has never belonged to another column, and `danglingColumnKeys()` reports
+  what a deletion would leave pointing at nothing.
+- **Cells put together and taken apart from the sheet.** `mergeable` offers both in the context
+  menu; the sheet reports and writes nothing, as it does with rows and columns, because the list of
+  blocks is usually saved with the document. `mergeRequested` carries the block to create _and_ the
+  anchors it swallows, which is the case a host gets wrong on its own: append without dropping them
+  and two blocks claim the same cell, with the one that wins depending on the order they were
+  declared in. `applySpanMerge()` and `applySpanUnmerge()` do it in a line.
+- **Real grid semantics.** `role="grid"`, per-cell row and column indices, `aria-selected`,
+  `aria-readonly` and a roving tab stop, so the sheet is navigable with a screen reader rather
+  than merely styled to look like a grid.
+- **Forms, in the shape Angular 22 actually offers.** `errors` takes a validation message per
+  cell from whatever source the host has, so the red lands on the cell that is wrong rather than
+  on the sheet. The optional `ng-hub-ui-spreadsheet/signals` entry point adds
+  `spreadsheetFieldErrors()`, which maps a Signal Forms field tree onto that map, and
+  `<hub-spreadsheet-field>`, a `FormValueControl<TRow[]>` for the simple case. Angular forbids
+  implementing `ControlValueAccessor` alongside that contract, and does not need it to: on
+  Angular 22 one `FormValueControl` serves signal, reactive and template-driven forms alike.
+- **63 CSS variables**, documented in [`docs/css-variables-reference.md`](docs/css-variables-reference.md).
+  Each one falls through `--hub-table-*` before `--hub-sys-*`, so a project that has themed its
+  tables gets its sheets dressed to match without setting anything.
+
+### Fixed
+
+- **A quick typist no longer loses characters.** The field a cell opens into cannot exist until the
+  view has been drawn, so `8`, `0`, `0` typed inside one frame had the first character open the
+  cell and the other two arrive at the grid with nowhere to go — the cell opened on `8` and
+  committed `8`. They are kept now and are in the field the moment it appears.
+- **`Enter` no longer opens the cell it lands on.** The keystroke that commits an edit reaches the
+  grid a moment later, where it read as a fresh `Enter` on the cell below and opened an editor
+  nobody asked for. Every commit did it; `Tab` and `Escape` did the same.
+
+### Notes
+
+- The sheet is not hydrated; it is re-created. A virtualised sheet draws what it measures, and a
+  server has no viewport to measure, so what it writes and what a browser then wants are two
+  different documents — which is exactly what hydration exists to refuse. The server's copy still
+  ships in the page, which is what a crawler reads.
+- Input methods are handled: a key arriving mid-composition is ignored, including the legacy `229`
+  Safari reports instead of flagging it. Without that, the `Enter` that confirms a Chinese,
+  Japanese or Korean character also commits the cell.
+- Pasted HTML is parsed, never injected. The clipboard is attacker-controlled input.

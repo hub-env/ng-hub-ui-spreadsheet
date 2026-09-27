@@ -1,0 +1,694 @@
+/*
+ * Every value reaches a literal through the same three steps: the sheet's own token, then the
+ * table's, then the design system's. A project that has already themed its tables with
+ * `--hub-table-*` gets the sheet dressed to match without touching a thing, and one that has not
+ * still renders correctly with the design system unloaded.
+ *
+ * The tokens declared here are only the ones the sheet adds on top of a table: the cursor, the
+ * selected range, the save states and the invalid editor. Everything a table already has —
+ * background, text, borders, padding — is inherited rather than redeclared.
+ */
+:host {
+	position: relative;
+
+	// Surface, inherited from the table.
+	--hub-spreadsheet-bg: var(--hub-table-bg, var(--hub-sys-color-surface, #fff));
+	--hub-spreadsheet-color: var(--hub-table-color, var(--hub-sys-color-text, #212529));
+	--hub-spreadsheet-border-color: var(--hub-table-border-color, var(--hub-sys-border-color-default, #dee2e6));
+	--hub-spreadsheet-border-width: var(--hub-table-border-width, 1px);
+	--hub-spreadsheet-border-radius: var(--hub-table-border-radius, var(--hub-sys-radius-lg, 0.5rem));
+	--hub-spreadsheet-cell-padding-x: var(--hub-table-cell-padding-x, 0.6rem);
+	--hub-spreadsheet-cell-padding-y: var(--hub-table-cell-padding-y, 0.4rem);
+	// The line one row of text stands on. Only read to work out how tall a cell has to stay while
+	// its content is away in an editor, so a sheet with a tighter or looser line says so here.
+	--hub-spreadsheet-cell-line-height: 1.5em;
+
+	// Header, inherited from the table's own surface.
+	--hub-spreadsheet-header-bg: var(--hub-table-container-bg, var(--hub-sys-color-surface-subtle, #f8f9fa));
+	--hub-spreadsheet-header-color: var(--hub-sys-text-muted, #6a737b);
+	--hub-spreadsheet-header-font-size: 0.8125rem;
+	--hub-spreadsheet-header-font-weight: 600;
+
+	// The cursor and the selected range. A sheet needs these; a table does not, so they are the
+	// sheet's own and fall back to the accent of the design system.
+	--hub-spreadsheet-cursor-color: var(--hub-sys-color-primary, #0d6efd);
+	--hub-spreadsheet-cursor-width: 2px;
+	--hub-spreadsheet-selection-bg: color-mix(in srgb, var(--hub-spreadsheet-cursor-color) 12%, transparent);
+
+	// A cell that cannot be typed into.
+	// Mixed against the sheet's own background rather than against transparency. A translucent
+	// value looks identical on an ordinary cell and fails on a frozen one, which has scrolling
+	// content passing behind it.
+	--hub-spreadsheet-readonly-bg: color-mix(in srgb, var(--hub-spreadsheet-header-bg) 55%, var(--hub-spreadsheet-bg));
+	// The mark that says a cell opens onto a list or a calendar.
+	//
+	// Taken from the select's own caret where the design system has one, so a cell and the field
+	// that opens over it draw the same arrow in the same place and nothing jumps as one replaces
+	// the other. The fallbacks are what the sheet uses on its own: the library does not depend on
+	// the forms package, and a variable that is not there simply falls through.
+	--hub-spreadsheet-affordance-color: var(--hub-select-arrow-color, var(--hub-sys-text-muted, #6a737b));
+	--hub-spreadsheet-affordance-size: var(--hub-select-arrow-size, 5px);
+	--hub-spreadsheet-affordance-gap: var(--hub-select-arrow-gap, 0.5rem);
+	// How thick the frame is on the field that will open over the cell. The mark lines up with
+	// that field's content edge rather than with the cell's, or it moves by a pixel as the editor
+	// arrives — and only in the last column, where the cell has no trailing border of its own to
+	// account for it.
+	--hub-spreadsheet-affordance-field-border: var(--hub-input-border-width, 1px);
+
+	--hub-spreadsheet-placeholder-color: var(--hub-sys-text-muted, #6a737b);
+	--hub-spreadsheet-placeholder-opacity: 0.65;
+	// The design system hands over a whole shorthand, not a duration, so the fade takes it as it
+	// comes. Only the opacity of this element ever changes, so `all` costs nothing here.
+	--hub-spreadsheet-placeholder-transition: var(--hub-sys-transition-fast, all 0.15s ease-in-out);
+
+	--hub-spreadsheet-readonly-color: var(--hub-sys-text-muted, #6a737b);
+
+	// The editor that replaces a cell while it is being written in.
+	--hub-spreadsheet-editor-bg: var(--hub-spreadsheet-bg);
+	--hub-spreadsheet-editor-color: var(--hub-spreadsheet-color);
+
+	// What a control supplied by the host is dressed in while it sits in a cell. The default
+	// strips its frame so the cell's own mark is the only one the reader sees.
+	--hub-spreadsheet-editor-field-bg: transparent;
+	--hub-spreadsheet-editor-field-border-color: transparent;
+	--hub-spreadsheet-editor-field-border-radius: 0;
+	--hub-spreadsheet-editor-field-focus-shadow: none;
+
+	// Where a cell's save stands. Each one tints the cell rather than adding chrome, so a column
+	// of them reads as a column and not as a list of badges.
+	--hub-spreadsheet-state-pending-color: var(--hub-sys-color-warning, #cc8a00);
+	--hub-spreadsheet-state-saving-color: var(--hub-sys-color-info, #0a7ea4);
+	--hub-spreadsheet-state-saved-color: var(--hub-sys-color-success, #1a7f37);
+	--hub-spreadsheet-state-error-color: var(--hub-sys-color-danger, #b3261e);
+	--hub-spreadsheet-state-conflict-color: var(--hub-sys-color-danger, #b3261e);
+	--hub-spreadsheet-state-bar-width: 3px;
+
+	// The list of what can go into a formula, and the alias a column answers to.
+	--hub-spreadsheet-suggestions-bg: var(--hub-spreadsheet-menu-bg);
+	--hub-spreadsheet-suggestions-border-color: var(--hub-spreadsheet-menu-border-color);
+	--hub-spreadsheet-suggestion-on-bg: var(--hub-spreadsheet-selection-bg);
+	--hub-spreadsheet-alias-bg: color-mix(in srgb, var(--hub-spreadsheet-cursor-color) 12%, transparent);
+	--hub-spreadsheet-alias-color: var(--hub-spreadsheet-cursor-color);
+
+	// The menu of structural changes.
+	--hub-spreadsheet-menu-bg: var(--hub-sys-color-surface, #fff);
+	--hub-spreadsheet-menu-color: var(--hub-spreadsheet-color);
+	--hub-spreadsheet-menu-border-color: var(--hub-spreadsheet-border-color);
+	--hub-spreadsheet-menu-radius: var(--hub-sys-radius-sm, 0.25rem);
+	--hub-spreadsheet-menu-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+	--hub-spreadsheet-menu-item-padding-x: 0.85rem;
+	--hub-spreadsheet-menu-item-padding-y: 0.4rem;
+	--hub-spreadsheet-menu-item-bg-hover: var(--hub-spreadsheet-selection-bg);
+
+	// Dragging a column: the grip on its trailing edge, and how a moving header reads.
+	--hub-spreadsheet-resize-grip-width: 5px;
+	--hub-spreadsheet-resize-grip-color: var(--hub-spreadsheet-cursor-color);
+	--hub-spreadsheet-moving-opacity: 0.5;
+
+	// The fill handle, and the area a release would write to.
+	--hub-spreadsheet-fill-handle-size: 7px;
+	--hub-spreadsheet-fill-handle-color: var(--hub-spreadsheet-cursor-color);
+	--hub-spreadsheet-fill-preview-bg: color-mix(in srgb, var(--hub-spreadsheet-cursor-color) 6%, transparent);
+
+	--hub-spreadsheet-invalid-color: var(--hub-sys-color-danger, #b3261e);
+	--hub-spreadsheet-invalid-border-width: 1px;
+	--hub-spreadsheet-invalid-bg: color-mix(in srgb, var(--hub-spreadsheet-invalid-color) 10%, transparent);
+
+	--hub-spreadsheet-max-block-size: var(--hub-table-container-max-block-size, none);
+
+	// The seam of a frozen pane. Heavier than an ordinary cell border, because what it separates
+	// is not two cells but two things that scroll independently.
+	--hub-spreadsheet-frozen-divider-color: var(--hub-spreadsheet-border-color, var(--hub-sys-border-color-default, #dee2e6));
+	--hub-spreadsheet-frozen-divider-width: 2px;
+
+	display: block;
+	color: var(--hub-spreadsheet-color);
+}
+
+.hub-spreadsheet__sink {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	padding: 0;
+	border: 0;
+	opacity: 0;
+	pointer-events: none;
+	// Kept inside the viewport rather than pushed off-screen: focusing an element outside the
+	// scroll area makes the browser scroll to reach it, and the sheet would jump on every paste.
+	inset-block-start: 0;
+	inset-inline-start: 0;
+}
+
+// Virtualising only means anything if the sheet is the thing that scrolls. Left to grow, it is as
+// tall as its content, the page scrolls instead, and the window covers every row there is — the
+// feature switched on and nothing happening, which is worse than not having it. So turning it on
+// gives the sheet a height; a project that has set its own keeps it, because a variable set on the
+// element beats one set on the host here.
+:host(.hub-spreadsheet--virtual) {
+	--hub-spreadsheet-max-block-size: var(--hub-table-container-max-block-size, 24rem);
+}
+
+.hub-spreadsheet__viewport {
+	position: relative;
+	overflow: auto;
+	max-block-size: var(--hub-spreadsheet-max-block-size);
+	border: var(--hub-spreadsheet-border-width) solid var(--hub-spreadsheet-border-color);
+	border-radius: var(--hub-spreadsheet-border-radius);
+	background: var(--hub-spreadsheet-bg);
+}
+
+.hub-spreadsheet__table {
+	inline-size: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-spreadsheet__header,
+.hub-spreadsheet__cell {
+	// How thick this cell's own trailing edges are. An editor laid over the cell reads them to
+	// cover the border rather than stopping a pixel short of it, and they differ per cell: the
+	// last column has no trailing border and a frozen seam is drawn thicker than the rest.
+	--hub-spreadsheet-cell-edge-inline: var(--hub-spreadsheet-border-width);
+	--hub-spreadsheet-cell-edge-block: var(--hub-spreadsheet-border-width);
+
+	padding: var(--hub-spreadsheet-cell-padding-y) var(--hub-spreadsheet-cell-padding-x);
+	border-inline-end: var(--hub-spreadsheet-border-width) solid var(--hub-spreadsheet-border-color);
+	border-block-end: var(--hub-spreadsheet-border-width) solid var(--hub-spreadsheet-border-color);
+	background: var(--hub-spreadsheet-bg);
+	white-space: nowrap;
+	text-align: start;
+
+	// The trailing border is dropped only on a cell that genuinely reaches the edge of the sheet,
+	// never on "the last one drawn". With merges those are different cells in different rows, and
+	// `:last-child` silently rubbed out an internal border wherever they diverged.
+	&--end-of-sheet {
+		// `0px`, never a bare `0`: this goes through `calc(… * -1)` in the editor's position, and
+		// `calc(0 * -1)` is a number rather than a length, so the whole declaration is thrown away
+		// and the editor falls back to shrinking around its own content.
+		--hub-spreadsheet-cell-edge-inline: 0px;
+
+		border-inline-end: 0;
+	}
+}
+
+.hub-spreadsheet__header {
+	position: sticky;
+	// The grips and the move markers are positioned against it.
+	isolation: isolate;
+	inset-block-start: 0;
+	z-index: 2;
+	background: var(--hub-spreadsheet-header-bg);
+	color: var(--hub-spreadsheet-header-color);
+	font-size: var(--hub-spreadsheet-header-font-size);
+	font-weight: var(--hub-spreadsheet-header-font-weight);
+
+	&--moving {
+		opacity: var(--hub-spreadsheet-moving-opacity);
+	}
+
+	// The seam shows where the column would land, drawn inwards like every other marker here.
+	&--move-target {
+		outline: var(--hub-spreadsheet-cursor-width) solid var(--hub-spreadsheet-cursor-color);
+		outline-offset: calc(var(--hub-spreadsheet-cursor-width) * -1);
+	}
+
+	&--frozen {
+		inset-inline-start: 0;
+		// Above the frozen body cells, which are themselves above ordinary ones. The corner where
+		// a frozen column meets the header has to win both.
+		z-index: 4;
+	}
+
+	&--frozen-edge {
+		border-inline-end: var(--hub-spreadsheet-frozen-divider-width) solid var(--hub-spreadsheet-frozen-divider-color);
+	}
+
+	// `position: sticky` already establishes the containing block the grip positions against.
+
+	&--end {
+		text-align: end;
+	}
+
+	&--center {
+		text-align: center;
+	}
+}
+
+.hub-spreadsheet__header-text--hidden {
+	position: absolute;
+	inline-size: 1px;
+	block-size: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.hub-spreadsheet__subheader {
+	display: block;
+	font-weight: 400;
+	opacity: 0.8;
+}
+
+.hub-spreadsheet__cell {
+	position: relative;
+	cursor: cell;
+	user-select: none;
+
+	&--end {
+		text-align: end;
+	}
+
+	&--center {
+		text-align: center;
+	}
+
+	// A cell frozen on either axis leaves the flow. Frozen on both, it is the corner, and has to
+	// sit above the two panes it belongs to.
+	// Content scrolls behind a pinned cell, so every background in this block stays opaque and
+	// state tints are layered on top rather than replacing it. `--readonly` sets its own opaque
+	// colour further down and therefore wins here, which is what keeps the two readable together.
+	&--frozen-col,
+	&--frozen-row {
+		position: sticky;
+		z-index: 1;
+	}
+
+	&--frozen-col {
+		// Pinned at the edge until the measurement says otherwise, so the first frozen column is
+		// right from the first frame and the rest settle a frame later. A row-frozen cell must
+		// not take this: it would drag the whole row to the leading edge on a sideways scroll.
+		inset-inline-start: 0;
+	}
+
+	&--frozen-col.hub-spreadsheet__cell--frozen-row {
+		z-index: 2;
+	}
+
+	&--frozen-col-edge {
+		--hub-spreadsheet-cell-edge-inline: var(--hub-spreadsheet-frozen-divider-width);
+
+		border-inline-end: var(--hub-spreadsheet-frozen-divider-width) solid var(--hub-spreadsheet-frozen-divider-color);
+	}
+
+	&--frozen-row-edge {
+		--hub-spreadsheet-cell-edge-block: var(--hub-spreadsheet-frozen-divider-width);
+
+		border-block-end: var(--hub-spreadsheet-frozen-divider-width) solid var(--hub-spreadsheet-frozen-divider-color);
+	}
+
+	// Tints are painted as a layer over whatever background-color the cell already has, instead
+	// of replacing it. That keeps a frozen cell opaque, and lets a selected read-only cell show
+	// both states at once rather than one hiding the other.
+	&--filling {
+		background-image: linear-gradient(var(--hub-spreadsheet-fill-preview-bg), var(--hub-spreadsheet-fill-preview-bg));
+	}
+
+	&--selected {
+		background-image: linear-gradient(var(--hub-spreadsheet-selection-bg), var(--hub-spreadsheet-selection-bg));
+	}
+
+	&--readonly {
+		background-color: var(--hub-spreadsheet-readonly-bg);
+		color: var(--hub-spreadsheet-readonly-color);
+		cursor: default;
+	}
+
+	&--muted {
+		color: var(--hub-spreadsheet-readonly-color);
+	}
+
+	&--invalid {
+		background-image: linear-gradient(var(--hub-spreadsheet-invalid-bg), var(--hub-spreadsheet-invalid-bg));
+		color: var(--hub-spreadsheet-invalid-color);
+		// Drawn inside the cell rather than as a border, so a cell turning invalid never shifts
+		// its neighbours by the width of a line. Colour alone does not carry the message either:
+		// the outline is what a reader who cannot tell red from grey has to go on.
+		box-shadow: inset 0 0 0 var(--hub-spreadsheet-invalid-border-width) var(--hub-spreadsheet-invalid-color);
+	}
+
+	// The cursor is an outline drawn inwards, not a border and not an overlay.
+	//
+	// A border would shift every neighbour by a pixel as the cursor travels. An overlay that
+	// spills past the cell gets painted over by the next cell — siblings paint in order — and
+	// clipped at the edges of the scroll area, so it came out broken on exactly the cells where
+	// it matters most. An inward outline takes part in neither layout nor overflow.
+	&--active {
+		outline: var(--hub-spreadsheet-cursor-width) solid var(--hub-spreadsheet-cursor-color);
+		outline-offset: calc(var(--hub-spreadsheet-cursor-width) * -1);
+		// Above its neighbours, so the two edges it shares with them are its own.
+		z-index: 2;
+	}
+
+	// An editor is positioned out of the flow, so while it is open the cell holds nothing that
+	// takes up room and would stand no taller than its own padding. In a row where the other
+	// cells happen to be empty that collapses the whole row — 38 pixels down to 14, the sheet
+	// jumping under the hand that opened it. The floor is the line the content was standing on.
+	&--editing {
+		// `block-size`, not `min-block-size`: the minimum is ignored on a table cell, while the
+		// height of one is read as a floor and never as a ceiling, so a taller row still wins.
+		block-size: calc(
+			var(--hub-spreadsheet-cell-line-height) + var(--hub-spreadsheet-cell-padding-y) * 2 +
+				var(--hub-spreadsheet-cell-edge-block)
+		);
+	}
+
+	// A frozen cell already sits above the body; the cursor on one has to sit above that again.
+	&--active.hub-spreadsheet__cell--frozen-col,
+	&--active.hub-spreadsheet__cell--frozen-row {
+		z-index: 3;
+	}
+
+	// No `outline: none` here on purpose. The cursor is itself an outline, and it is the focused
+	// cell that carries it, so suppressing the focus ring would suppress the cursor with it.
+
+	// The save state is a bar down the inline edge. It survives the selection tint and the
+	// cursor overlay, which sit on other layers.
+	&[data-state]::before {
+		content: '';
+		position: absolute;
+		inset-block: 0;
+		inset-inline-start: 0;
+		inline-size: var(--hub-spreadsheet-state-bar-width);
+	}
+
+	&[data-state='pending']::before {
+		background: var(--hub-spreadsheet-state-pending-color);
+	}
+
+	&[data-state='saving']::before {
+		background: var(--hub-spreadsheet-state-saving-color);
+	}
+
+	&[data-state='saved']::before {
+		background: var(--hub-spreadsheet-state-saved-color);
+	}
+
+	&[data-state='error']::before {
+		background: var(--hub-spreadsheet-state-error-color);
+	}
+
+	&[data-state='conflict']::before {
+		background: repeating-linear-gradient(45deg, var(--hub-spreadsheet-state-conflict-color) 0 3px, transparent 3px 6px);
+	}
+}
+
+.hub-spreadsheet__editor--select {
+	// A native list so the keyboard, the type-ahead and the mobile behaviour are the platform's.
+	// A column that wants something richer replaces the editor wholesale.
+	padding-inline: calc(var(--hub-spreadsheet-cell-padding-x) - 2px);
+	appearance: auto;
+}
+
+// The host's own editor fills the cell and is left to style itself; only the frame is ours.
+.hub-spreadsheet__custom-editor {
+	position: absolute;
+	// Over the cell's own trailing borders, not merely over what is inside them. An absolutely
+	// positioned child is laid out against the padding box, which stops short of the border — and
+	// the cell's mark then showed beneath the editor as a second line a pixel lower, so the edge
+	// read two pixels thick at the bottom and one everywhere else.
+	inset-block-start: 0;
+	inset-inline-start: 0;
+	inset-block-end: calc(var(--hub-spreadsheet-cell-edge-block) * -1);
+	inset-inline-end: calc(var(--hub-spreadsheet-cell-edge-inline) * -1);
+	// A one-cell grid, which is how the supplied editor comes to fill the cell in both directions
+	// without a single rule aimed at it. Aiming one is not an option: the editor is built from the
+	// host's template, so it carries the host's encapsulation and not the sheet's, and a rule
+	// written here for `> *` matches nothing at all. What does cross that line is a custom
+	// property, which is why everything below is set as one.
+	display: grid;
+	background: var(--hub-spreadsheet-editor-bg);
+	outline: var(--hub-spreadsheet-cursor-width) solid var(--hub-spreadsheet-cursor-color);
+	outline-offset: calc(var(--hub-spreadsheet-cursor-width) * -1);
+	z-index: 3;
+
+	// A control dropped into a cell wears the cell, not its own frame. Left alone it brings the
+	// border, the rounded corners and the focus ring it wears in a form, and the reader then has
+	// two marks one inside the other — of which the inner one wins, saying "this field" where the
+	// sheet needs to say "this cell". The corners give it away worst: a rounded box inside a
+	// square one reads as something laid on top of the sheet rather than as part of it.
+	//
+	// Done through the design system's variables, so the sheet reaches into no other library. The
+	// border is turned transparent rather than to zero: the box keeps its geometry, so nothing
+	// shifts by a pixel as the editor opens. Each one is a spreadsheet token, so a sheet that
+	// does want a framed editor can hand the frame back.
+	--hub-input-bg: var(--hub-spreadsheet-editor-field-bg);
+	--hub-input-border-color: var(--hub-spreadsheet-editor-field-border-color);
+	--hub-input-border-radius: var(--hub-spreadsheet-editor-field-border-radius);
+	--hub-input-focus-border-color: var(--hub-spreadsheet-editor-field-border-color);
+	--hub-input-focus-box-shadow: var(--hub-spreadsheet-editor-field-focus-shadow);
+	// Lined up with the cell's own text, or the value slides sideways the moment the cell opens.
+	--hub-input-padding-x: var(--hub-spreadsheet-cell-padding-x);
+
+	// The select resolves its own against the input's at `:root`, so it inherits the answer and
+	// not the question. It has to be told separately.
+	--hub-select-bg: var(--hub-spreadsheet-editor-field-bg);
+	--hub-select-border-color: var(--hub-spreadsheet-editor-field-border-color);
+	--hub-select-border-radius: var(--hub-spreadsheet-editor-field-border-radius);
+	--hub-select-focus-border-color: var(--hub-spreadsheet-editor-field-border-color);
+	--hub-select-focus-box-shadow: var(--hub-spreadsheet-editor-field-focus-shadow);
+	--hub-select-padding-x: var(--hub-spreadsheet-cell-padding-x);
+}
+
+// Stands in for the rows that are not drawn. It holds their height and nothing else: a border or
+// a padding here would draw a line across the sheet where there is no row.
+.hub-spreadsheet__spacer > td {
+	padding: 0;
+	border: 0;
+	background: var(--hub-spreadsheet-bg);
+}
+
+.hub-spreadsheet__affordance {
+	position: absolute;
+	inset-block: 0;
+	// Where the field's own caret will be, to the pixel: held off the cell by the gap a select
+	// keeps, and lined up with the field's content edge rather than with the cell's. The gap
+	// doubles as the hit area, so the target is wide without the mark moving.
+	inset-inline-end: calc(var(--hub-spreadsheet-affordance-field-border) - var(--hub-spreadsheet-cell-edge-inline));
+	display: flex;
+	align-items: center;
+	padding-inline: var(--hub-spreadsheet-affordance-gap);
+	cursor: pointer;
+
+	// Only on the cell the reader is on, or the one under the pointer. Down every row of a column
+	// it would read as content and make the sheet look like a form.
+	opacity: 0;
+
+	.hub-spreadsheet__cell:hover > &,
+	.hub-spreadsheet__cell--active > & {
+		opacity: 1;
+	}
+
+	// A caret, drawn with a border rather than with a glyph so it needs no font and no icon set.
+	// The geometry is the select's, declaration for declaration, so the two arrows are the same
+	// arrow.
+	&::after {
+		content: '';
+		inline-size: 0;
+		block-size: 0;
+		border-style: solid;
+		border-width: var(--hub-spreadsheet-affordance-size) var(--hub-spreadsheet-affordance-size)
+			calc(var(--hub-spreadsheet-affordance-size) / 2);
+		border-color: var(--hub-spreadsheet-affordance-color) transparent transparent;
+	}
+
+	// And a calendar for a date: a box with its bar along the top, same trick.
+	&--date::after {
+		inline-size: calc(var(--hub-spreadsheet-affordance-size) * 2);
+		block-size: calc(var(--hub-spreadsheet-affordance-size) * 1.8);
+		border: 1px solid var(--hub-spreadsheet-affordance-color);
+		border-block-start-width: 3px;
+		border-radius: 2px;
+	}
+}
+
+.hub-spreadsheet__placeholder {
+	position: absolute;
+	inset-block: 0;
+	inset-inline: var(--hub-spreadsheet-cell-padding-x);
+	display: flex;
+	align-items: center;
+	color: var(--hub-spreadsheet-placeholder-color);
+	opacity: 0;
+	pointer-events: none;
+	// Only while the pointer is on the cell. Shown always, a column of hints reads as a column of
+	// content and a reader scanning for what is filled in has to look twice at every row.
+	transition: var(--hub-spreadsheet-placeholder-transition);
+}
+
+.hub-spreadsheet__cell:hover > .hub-spreadsheet__placeholder {
+	opacity: var(--hub-spreadsheet-placeholder-opacity);
+}
+
+.hub-spreadsheet__check {
+	// Sized from the text so a dense sheet keeps its rhythm.
+	inline-size: 1em;
+	block-size: 1em;
+	accent-color: var(--hub-spreadsheet-cursor-color);
+	cursor: pointer;
+
+	&:disabled {
+		cursor: default;
+	}
+}
+
+.hub-spreadsheet__resize-grip {
+	position: absolute;
+	inset-block: 0;
+	// Wholly inside the header's trailing edge: anything that spills out is painted over by the
+	// next header and clipped at the edge of the scroll area.
+	inset-inline-end: 0;
+	inline-size: var(--hub-spreadsheet-resize-grip-width);
+	cursor: col-resize;
+	// Invisible until the pointer is on it. A line down every header is noise; a target that is
+	// there when reached for is not.
+	background: transparent;
+	z-index: 5;
+
+	&:hover,
+	&:active {
+		background: var(--hub-spreadsheet-resize-grip-color);
+	}
+}
+
+.hub-spreadsheet__fill-handle {
+	position: absolute;
+	// Wholly inside the cell. Straddling the corner reads better in isolation, but anything that
+	// spills out is painted over by the next cell and clipped at the edges of the scroll area —
+	// so it would break on the last column and the last row, where a grip is used most.
+	inset-block-end: 0;
+	inset-inline-end: 0;
+	inline-size: var(--hub-spreadsheet-fill-handle-size);
+	block-size: var(--hub-spreadsheet-fill-handle-size);
+	background: var(--hub-spreadsheet-fill-handle-color);
+	cursor: crosshair;
+	// Above the cursor outline on the same cell, or the pointer would land on the cell instead.
+	z-index: 4;
+}
+
+.hub-spreadsheet__secondary {
+	display: block;
+	opacity: 0.75;
+}
+
+.hub-spreadsheet__editor {
+	position: absolute;
+	// Over the cell's trailing borders as well, for the reason given on `__custom-editor`. The
+	// sizes that used to be here have gone with it: an explicit `100%` is measured against the
+	// padding box and quietly beats the insets, which is what left the edge uneven.
+	inset-block-start: 0;
+	inset-inline-start: 0;
+	inset-block-end: calc(var(--hub-spreadsheet-cell-edge-block) * -1);
+	inset-inline-end: calc(var(--hub-spreadsheet-cell-edge-inline) * -1);
+	padding: var(--hub-spreadsheet-cell-padding-y) var(--hub-spreadsheet-cell-padding-x);
+	border: var(--hub-spreadsheet-cursor-width) solid var(--hub-spreadsheet-cursor-color);
+	border-radius: 0;
+	background: var(--hub-spreadsheet-editor-bg);
+	color: var(--hub-spreadsheet-editor-color);
+	font: inherit;
+	font-variant-numeric: tabular-nums;
+	text-align: inherit;
+	outline: none;
+	z-index: 2;
+
+	&[aria-invalid='true'] {
+		border-color: var(--hub-spreadsheet-invalid-color);
+	}
+}
+
+.hub-spreadsheet__empty {
+	padding-block: calc(var(--hub-spreadsheet-cell-padding-y) * 4);
+	color: var(--hub-spreadsheet-readonly-color);
+	text-align: center;
+	cursor: default;
+}
+
+.hub-spreadsheet__menu {
+	position: absolute;
+	z-index: 10;
+	min-inline-size: 12rem;
+	padding-block: 0.25rem;
+	border: var(--hub-spreadsheet-border-width) solid var(--hub-spreadsheet-menu-border-color);
+	border-radius: var(--hub-spreadsheet-menu-radius);
+	background: var(--hub-spreadsheet-menu-bg);
+	color: var(--hub-spreadsheet-menu-color);
+	box-shadow: var(--hub-spreadsheet-menu-shadow);
+}
+
+.hub-spreadsheet__menu-item {
+	display: block;
+	inline-size: 100%;
+	padding: var(--hub-spreadsheet-menu-item-padding-y) var(--hub-spreadsheet-menu-item-padding-x);
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: start;
+	white-space: nowrap;
+	cursor: pointer;
+
+	&:hover,
+	&:focus-visible {
+		background: var(--hub-spreadsheet-menu-item-bg-hover);
+	}
+}
+
+// What can go into the formula being written. Drawn under the cell and above everything else,
+// because a list that the next row covers is a list nobody can read.
+.hub-spreadsheet__suggestions {
+	position: absolute;
+	inset-block-start: 100%;
+	inset-inline-start: 0;
+	z-index: 12;
+	display: flex;
+	flex-direction: column;
+	min-inline-size: 14rem;
+	max-block-size: 14rem;
+	overflow-y: auto;
+	border: var(--hub-spreadsheet-border-width) solid var(--hub-spreadsheet-suggestions-border-color);
+	border-radius: var(--hub-spreadsheet-border-radius);
+	background: var(--hub-spreadsheet-suggestions-bg);
+	box-shadow: var(--hub-spreadsheet-menu-shadow);
+}
+
+.hub-spreadsheet__suggestion {
+	display: flex;
+	gap: 0.5rem;
+	align-items: baseline;
+	justify-content: space-between;
+	padding: var(--hub-spreadsheet-cell-padding-y) var(--hub-spreadsheet-cell-padding-x);
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: start;
+	cursor: pointer;
+
+	&:hover,
+	&--on {
+		background: var(--hub-spreadsheet-suggestion-on-bg);
+	}
+}
+
+.hub-spreadsheet__suggestion-name {
+	font-variant-numeric: tabular-nums;
+}
+
+.hub-spreadsheet__suggestion-hint {
+	color: var(--hub-spreadsheet-readonly-color);
+	font-size: var(--hub-spreadsheet-header-font-size);
+}
+
+// The name a formula calls a column by, shown on its header while one is being written.
+.hub-spreadsheet__alias {
+	margin-inline-start: 0.4rem;
+	padding: 0 0.3rem;
+	border: 0;
+	border-radius: 0.25rem;
+	background: var(--hub-spreadsheet-alias-bg);
+	color: var(--hub-spreadsheet-alias-color);
+	font: inherit;
+	font-size: var(--hub-spreadsheet-header-font-size);
+	font-weight: 400;
+	cursor: pointer;
+}

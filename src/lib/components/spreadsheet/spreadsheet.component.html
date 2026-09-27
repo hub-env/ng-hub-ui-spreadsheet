@@ -1,0 +1,365 @@
+<!--
+	The off-screen field exists for one reason: a browser only dispatches `paste` to something
+	editable. The paste shortcut parks the focus here for the length of the event and the cell
+	takes it straight back, so the reader never notices and the grid keeps its own focus model.
+-->
+<textarea class="hub-spreadsheet__sink" tabindex="-1" aria-hidden="true" readonly (paste)="onPaste($event)"></textarea>
+
+<div class="hub-spreadsheet__viewport" #viewport (scroll)="onViewportScroll()">
+	<table
+		class="hub-spreadsheet__table"
+		role="grid"
+		[attr.aria-rowcount]="bounds().rows"
+		[attr.aria-colcount]="bounds().cols"
+		[attr.aria-readonly]="readonly() || null"
+		(keydown)="onKeydown($event)"
+		(copy)="onCopy($event, false)"
+		(cut)="onCopy($event, true)"
+	>
+		<thead class="hub-spreadsheet__head">
+			<tr role="row">
+				<!-- Holds the width of the columns that are not drawn, so the sheet is as wide as it
+				says it is and the ones that are drawn land where they belong. -->
+				@if (columnWindow().before > 0) {
+					<!-- A minimum, not a width: in a table that shares its space out, a width is a
+					suggestion the algorithm is free to ignore, and an empty cell asked for three
+					thousand pixels came out two wide. -->
+					<th
+						class="hub-spreadsheet__spacer"
+						role="presentation"
+						[style.min-inline-size.px]="columnWindow().before"
+						[style.inline-size.px]="columnWindow().before"
+					></th>
+				}
+
+				@for (columnIndex of drawnColumns(); track trackColumn(columnIndex, columns()[columnIndex])) {
+					@let column = columns()[columnIndex];
+					<th
+						class="hub-spreadsheet__header"
+						role="columnheader"
+						scope="col"
+						[class.hub-spreadsheet__header--frozen]="isFrozenColumn(columnIndex)"
+						[class.hub-spreadsheet__header--frozen-edge]="isColumnEdge(columnIndex)"
+						[class.hub-spreadsheet__header--end]="column.align === 'end'"
+						[class.hub-spreadsheet__header--center]="column.align === 'center'"
+						[style.inset-inline-start.px]="columnOffsetOf(columnIndex)"
+						[style.min-width]="column.minWidth"
+						[style.width.px]="widthOf(columnIndex)"
+						[attr.data-header]="columnIndex"
+						[class.hub-spreadsheet__header--end-of-sheet]="columnIndex === bounds().cols - 1"
+						[class.hub-spreadsheet__header--moving]="isMovingColumn(columnIndex)"
+						[class.hub-spreadsheet__header--move-target]="isMoveTarget(columnIndex)"
+						(mousedown)="onHeaderMouseDown($event, columnIndex)"
+						(mouseenter)="onHeaderMouseEnter(columnIndex)"
+						[attr.aria-colindex]="columnIndex + 1"
+					>
+						<span [class.hub-spreadsheet__header-text--hidden]="column.headerHidden">
+							{{ column.header }}
+						</span>
+						<!-- The name a formula calls this column, which is not the name on the header.
+					Shown only while one is being written, and clickable, because the alternative is
+					knowing it by heart. -->
+						@if (writingFormula()) {
+							<button
+								class="hub-spreadsheet__alias"
+								type="button"
+								tabindex="-1"
+								(mousedown)="
+									$event.preventDefault();
+									useSuggestion({ label: column.key, kind: 'column', insert: '[' + column.key + ']' })
+								"
+							>
+								<span class="hub-spreadsheet__alias-letter">{{ columnLetter(columnIndex) }}</span>
+								{{ column.key }}
+							</button>
+						}
+
+						@if (column.subheader) {
+							<small class="hub-spreadsheet__subheader">{{ column.subheader }}</small>
+						}
+
+						@if (resizableColumns()) {
+							<!-- Sits inside the header's trailing edge. Hidden from assistive technology:
+							a width is a matter of taste, and a screen reader has no use for a drag
+							target it cannot aim at. -->
+							<span
+								class="hub-spreadsheet__resize-grip"
+								aria-hidden="true"
+								(mousedown)="onResizeStart($event, columnIndex)"
+							></span>
+						}
+					</th>
+				}
+
+				@if (columnWindow().after > 0) {
+					<th
+						class="hub-spreadsheet__spacer"
+						role="presentation"
+						[style.min-inline-size.px]="columnWindow().after"
+						[style.inline-size.px]="columnWindow().after"
+					></th>
+				}
+			</tr>
+		</thead>
+
+		<tbody class="hub-spreadsheet__body">
+			<!-- The rows above the window are not in the document; this holds their height, so the
+			scrollbar still says how long the sheet is and the rows that are drawn land where they
+			belong. Hidden from assistive technology, which reads `aria-rowindex` instead. -->
+			@if (rowWindow().before > 0) {
+				<tr class="hub-spreadsheet__spacer" role="presentation" aria-hidden="true">
+					<td [attr.colspan]="drawnCellCount()" [style.block-size.px]="rowWindow().before"></td>
+				</tr>
+			}
+
+			@for (rowIndex of drawnRows(); track trackRow(rowIndex)) {
+				<tr
+					class="hub-spreadsheet__row"
+					role="row"
+					[class.hub-spreadsheet__row--frozen]="isFrozenRow(rowIndex)"
+					[class.hub-spreadsheet__row--frozen-edge]="isRowEdge(rowIndex)"
+					[attr.aria-rowindex]="rowIndex + 1"
+				>
+					@if (columnWindow().before > 0) {
+						<td class="hub-spreadsheet__spacer" role="presentation" aria-hidden="true"></td>
+					}
+
+					@for (colIndex of drawnColumns(); track trackColumn(colIndex, columns()[colIndex])) {
+						@let column = columns()[colIndex];
+						<!-- A cell swallowed by a merge is not rendered at all: the anchor's rowspan and
+						colspan already occupy its place, and drawing it would push the row out of shape. -->
+						@if (!isHidden(rowIndex, colIndex)) {
+							@let cell = grid()[rowIndex][colIndex];
+							@let state = stateOf(rowIndex, colIndex);
+							@let error = errorOf(rowIndex, colIndex);
+							@let editable = canEdit(rowIndex, colIndex);
+							<!-- Worked out once per cell, and only for the one that is open: the config a
+						registered control adapter is asked for, or null when there is nothing to host. -->
+							@let hosted = editing() && isActive(rowIndex, colIndex) ? hostedControl(rowIndex, colIndex) : null;
+
+							<td
+								class="hub-spreadsheet__cell"
+								role="gridcell"
+								[attr.data-cell]="rowIndex + '-' + colIndex"
+								[attr.tabindex]="tabIndexOf(rowIndex, colIndex)"
+								[attr.aria-colindex]="colIndex + 1"
+								[attr.rowspan]="rowSpanOf(rowIndex, colIndex)"
+								[attr.colspan]="colSpanOf(rowIndex, colIndex)"
+								[attr.aria-rowspan]="rowSpanOf(rowIndex, colIndex)"
+								[attr.aria-colspan]="colSpanOf(rowIndex, colIndex)"
+								[attr.aria-selected]="isSelected(rowIndex, colIndex)"
+								[attr.aria-readonly]="!editable || null"
+								[attr.aria-invalid]="(isActive(rowIndex, colIndex) && invalid()) || error ? true : null"
+								[attr.aria-busy]="state === 'saving' || null"
+								[attr.title]="error ?? cell.title"
+								[class.hub-spreadsheet__cell--active]="isActive(rowIndex, colIndex)"
+								[class.hub-spreadsheet__cell--editing]="editing() && isActive(rowIndex, colIndex)"
+								[class.hub-spreadsheet__cell--selected]="isSelected(rowIndex, colIndex)"
+								[class.hub-spreadsheet__cell--end-of-sheet]="reachesEnd(rowIndex, colIndex)"
+								[class.hub-spreadsheet__cell--filling]="isFillPreview(rowIndex, colIndex)"
+								[class.hub-spreadsheet__cell--readonly]="!editable"
+								[class.hub-spreadsheet__cell--muted]="cell.muted"
+								[class.hub-spreadsheet__cell--end]="column.align === 'end'"
+								[class.hub-spreadsheet__cell--center]="column.align === 'center'"
+								[class.hub-spreadsheet__cell--frozen-col]="isFrozenColumn(colIndex)"
+								[class.hub-spreadsheet__cell--frozen-row]="isFrozenRow(rowIndex)"
+								[class.hub-spreadsheet__cell--frozen-col-edge]="isColumnEdge(colIndex)"
+								[class.hub-spreadsheet__cell--frozen-row-edge]="isRowEdge(rowIndex)"
+								[style.inset-inline-start.px]="columnOffsetOf(colIndex)"
+								[style.inset-block-start.px]="rowOffsetOf(rowIndex)"
+								[class.hub-spreadsheet__cell--invalid]="
+									(isActive(rowIndex, colIndex) && invalid()) ||
+									!!error ||
+									hasFormulaError(rowIndex, colIndex)
+								"
+								[attr.data-state]="state"
+								(mousedown)="onMouseDown($event, rowIndex, colIndex)"
+								(mouseenter)="onMouseEnter(rowIndex, colIndex)"
+								(mouseup)="onMouseUp($event, rowIndex, colIndex)"
+								(dblclick)="onDoubleClick()"
+								(contextmenu)="onContextMenu($event, rowIndex, colIndex)"
+							>
+								@if (editing() && isActive(rowIndex, colIndex)) {
+									@if (editorFor(colIndex); as custom) {
+										<!-- The host supplied an editor for this column. It reports a value through
+									`commit`, or walks away through `cancel`; until it does one of the two the
+									editor stays open, so a picker may take as many clicks as it needs. -->
+										<div class="hub-spreadsheet__custom-editor">
+											<ng-container
+												[ngTemplateOutlet]="custom.template"
+												[ngTemplateOutletContext]="editorContext(rowIndex, colIndex)"
+											/>
+										</div>
+									} @else if (hosted) {
+										<!-- A control adapter is registered and this column is a list, so the cell
+									opens with whatever the project wired instead of the native list. The
+									wrapper is the supplied editor's, because from the sheet's side this is
+									one: something it did not build, filling the cell. -->
+										<div class="hub-spreadsheet__custom-editor">
+											<ng-container [hubSpreadsheetControl]="hosted" />
+										</div>
+									} @else if (column.kind === 'select') {
+										<select
+											class="hub-spreadsheet__editor hub-spreadsheet__editor--select"
+											[attr.aria-label]="column.header"
+											(change)="commitFromEditor($any($event.target).value || null)"
+											(keydown)="onEditorKeydown($event)"
+											(blur)="onEditorBlur()"
+										>
+											<option value="" [selected]="cell.value === null"></option>
+											@for (option of column.options ?? []; track option.value) {
+												<option
+													[value]="option.value"
+													[selected]="isChosen(option, column)"
+													[disabled]="option.disabled && option.value !== cell.value"
+												>
+													{{ option.label }}
+												</option>
+											}
+										</select>
+									} @else {
+										@if (suggesting()) {
+											<!-- What can go into the formula, because the aliases it needs are nowhere
+										else on screen. Hidden from assistive technology: the field owns the
+										conversation, and a list that announced itself over every keystroke
+										would talk across it. -->
+											<div class="hub-spreadsheet__suggestions" role="presentation" aria-hidden="true">
+												@for (suggestion of suggestions(); track suggestion.label; let index = $index) {
+													<button
+														class="hub-spreadsheet__suggestion"
+														type="button"
+														tabindex="-1"
+														[class.hub-spreadsheet__suggestion--on]="index === suggestionIndex()"
+														(mousedown)="$event.preventDefault(); useSuggestion(suggestion)"
+													>
+														<span class="hub-spreadsheet__suggestion-name">{{
+															suggestion.label
+														}}</span>
+														@if (suggestion.hint) {
+															<span class="hub-spreadsheet__suggestion-hint">{{
+																suggestion.hint
+															}}</span>
+														}
+													</button>
+												}
+											</div>
+										}
+
+										<input
+											class="hub-spreadsheet__editor"
+											[type]="column.kind === 'date' ? 'date' : 'text'"
+											[value]="draft()"
+											[attr.aria-label]="column.header"
+											[attr.aria-invalid]="invalid() || null"
+											(input)="onDraftInput($event)"
+											(keydown)="onEditorKeydown($event)"
+											(blur)="onEditorBlur()"
+										/>
+									}
+								} @else {
+									@if (column.kind === 'boolean') {
+										<input
+											class="hub-spreadsheet__check"
+											type="checkbox"
+											[checked]="isOn(cell)"
+											[disabled]="!editable"
+											[attr.aria-label]="column.header"
+											(change)="toggleBoolean(rowIndex, colIndex)"
+											(click)="$event.stopPropagation()"
+										/>
+									} @else if (cellTemplateFor(colIndex); as own) {
+										<!-- The host draws this column's cells. The value still travels to the
+									clipboard rather than the drawing, and the cell is still what the
+									keyboard is on: the template is inside it, not instead of it. -->
+										<ng-container
+											[ngTemplateOutlet]="own.template"
+											[ngTemplateOutletContext]="cellContext(rowIndex, colIndex)"
+										/>
+									} @else {
+										<!-- The row's number, so a coordinate can be read off the sheet instead of
+									counted. Only while a formula is being written, and only in the first
+									column drawn, which is where a spreadsheet puts it. -->
+										@if (writingFormula() && colIndex === drawnColumns()[0]) {
+											<span class="hub-spreadsheet__rownum" aria-hidden="true">{{ rowIndex + 1 }}</span>
+										}
+
+										<span class="hub-spreadsheet__value">{{ displayOf(cell, column) }}</span>
+
+										@if (column.placeholder && !displayOf(cell, column)) {
+											<span class="hub-spreadsheet__placeholder" aria-hidden="true">
+												{{ column.placeholder }}
+											</span>
+										}
+
+										<!-- Says the cell opens onto a list or a calendar rather than a field, and
+									opens it on one click — as a spreadsheet drops the list of a cell that
+									has one. Shown on the cell the reader is on and on the one under the
+									pointer. Hidden from assistive technology: the keyboard opens the same
+									cell with Alt and the down arrow, and reads the editor itself. -->
+										@if (editable && affordanceOf(column, colIndex); as affordance) {
+											<span
+												class="hub-spreadsheet__affordance"
+												[class.hub-spreadsheet__affordance--date]="affordance === 'date'"
+												aria-hidden="true"
+												(mousedown)="onAffordanceDown($event, rowIndex, colIndex)"
+											></span>
+										}
+									}
+
+									@if (cell.secondary) {
+										<small class="hub-spreadsheet__secondary">{{ cell.secondary }}</small>
+									}
+
+									@if (hasFillHandle(rowIndex, colIndex)) {
+										<!-- Drawn inside the corner cell so it travels with the selection. Hidden from
+									assistive technology: filling is available from the keyboard through the
+									clipboard, and a screen reader has no use for a drag target. -->
+										<span
+											class="hub-spreadsheet__fill-handle"
+											aria-hidden="true"
+											(mousedown)="onFillHandleDown($event)"
+										></span>
+									}
+								}
+							</td>
+						}
+					}
+
+					@if (columnWindow().after > 0) {
+						<td class="hub-spreadsheet__spacer" role="presentation" aria-hidden="true"></td>
+					}
+				</tr>
+			} @empty {
+				<tr class="hub-spreadsheet__row hub-spreadsheet__row--empty" role="row">
+					<td class="hub-spreadsheet__empty" role="gridcell" [attr.colspan]="bounds().cols || 1">
+						{{ emptyText() }}
+					</td>
+				</tr>
+			}
+			@if (rowWindow().after > 0) {
+				<tr class="hub-spreadsheet__spacer" role="presentation" aria-hidden="true">
+					<td [attr.colspan]="drawnCellCount()" [style.block-size.px]="rowWindow().after"></td>
+				</tr>
+			}
+		</tbody>
+	</table>
+</div>
+
+@if (menuAt(); as at) {
+	<!-- Positioned against the host, which is the sheet's own corner, so the menu travels with a
+	scrolled page and never has to be repositioned on scroll. -->
+	<div
+		class="hub-spreadsheet__menu"
+		role="menu"
+		[attr.aria-label]="'ROW_ACTIONS' | translate"
+		[style.inset-inline-start.px]="at.x"
+		[style.inset-block-start.px]="at.y"
+		(mousedown)="$event.stopPropagation()"
+	>
+		@for (entry of menuEntries(); track entry.id) {
+			<button class="hub-spreadsheet__menu-item" type="button" role="menuitem" (click)="runMenuEntry(entry.id)">
+				{{ entry.label | translate: { count: entry.count } }}
+			</button>
+		}
+	</div>
+}
