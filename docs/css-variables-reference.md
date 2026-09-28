@@ -231,6 +231,17 @@ operators keep the sheet's text colour, and the punctuation steps back.
 | `--hub-spreadsheet-token-coordinate-color`  | `--hub-sys-color-success` → `#1a7f37`| A cell reference: `B3`, `B3:D7`.                            |
 | `--hub-spreadsheet-token-text-color`        | `--hub-sys-color-danger` → `#b3261e` | A quoted string: `"IVA"`.                                   |
 
+A cell that is worked out from a formula rather than typed carries a small rounded `fx` in its top
+corner, shown while the pointer is on it — a mark on every formula cell at once would read as
+content. Pressing it opens the cell on its formula, unless the column carries the formula itself and
+the cell has nothing to type over. Its two tokens sit apart from the ones above because it is a note
+about the cell, not a piece of the formula.
+
+| Variable                              | Falls back to                        | What it colours                                    |
+| ------------------------------------- | ------------------------------------ | -------------------------------------------------- |
+| `--hub-spreadsheet-formula-bg`        | the cursor colour at 14 %            | Background of the `fx`.                            |
+| `--hub-spreadsheet-formula-color`     | `var(--hub-spreadsheet-cursor-color)`| Its text.                                          |
+
 ---
 
 ## Save state

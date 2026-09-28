@@ -512,12 +512,20 @@ describe('HubSpreadsheetComponent', () => {
 			expect(editor()?.value).toBe('Tornillo');
 		});
 
-		it('shows the column letters and the row numbers while a cell is open, and not otherwise', () => {
-			// Nothing before a cell is opened: the coordinates are an editing aid, not decoration
-			// laid over the sheet the rest of the time.
+		it('shows the column letters and the row numbers only while a formula is written', () => {
+			host.formulas.set(true);
+			fixture.detectChanges();
+
+			// A plain edit is not a formula: opening a cell that holds a word shows no coordinates.
+			openCell(0, 0);
 			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__coord')).toBeNull();
 
-			openCell(0, 0);
+			// The formula's first `=` brings them out.
+			const field = editor()!;
+
+			field.value = '=';
+			field.dispatchEvent(new Event('input', { bubbles: true }));
+			fixture.detectChanges();
 
 			const letters = (
 				Array.from(fixture.nativeElement.querySelectorAll('.hub-spreadsheet__coord-letter')) as HTMLElement[]
@@ -530,14 +538,18 @@ describe('HubSpreadsheetComponent', () => {
 			expect(numbers).toEqual(['1', '2', '3']);
 		});
 
-		it('hangs the row number off the row it names, out in the gutter', () => {
-			openCell(0, 0);
+		it('draws the coordinates outside the sheet frame', () => {
+			host.formulas.set(true);
+			fixture.detectChanges();
+			click(0, 0);
+			press('=');
 
-			// Inside the first column's cell, which is the row it belongs to; the badge itself is
-			// positioned out over the room the shifted table left.
-			const first = cell(0, 0).querySelector('.hub-spreadsheet__coord--row');
+			const badge = fixture.nativeElement.querySelector('.hub-spreadsheet__coord');
+			const viewport = fixture.nativeElement.querySelector('.hub-spreadsheet__viewport');
 
-			expect(first?.textContent?.trim()).toBe('1');
+			// Outside the scroll area, so the frame stays between the badges and the table.
+			expect(badge).not.toBeNull();
+			expect(viewport.contains(badge)).toBe(false);
 		});
 
 		it('types over the cell when a character arrives', () => {
@@ -1085,6 +1097,62 @@ describe('HubSpreadsheetComponent', () => {
 			press('F2');
 
 			expect(editor()?.value).toBe('=[units] * 2');
+		});
+
+		it('marks a formula cell with an fx, and a typed one with nothing', () => {
+			withFormulas();
+
+			// The calc column holds a formula; the item column is typed.
+			expect(cell(0, 3).querySelector('.hub-spreadsheet__fx')).not.toBeNull();
+			expect(cell(0, 0).querySelector('.hub-spreadsheet__fx')).toBeNull();
+		});
+
+		it('opens the formula for writing when its fx is pressed', () => {
+			withFormulas();
+
+			const fx = cell(0, 3).querySelector('.hub-spreadsheet__fx')!;
+
+			fx.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+			fixture.detectChanges();
+
+			// The cell opens on the formula it holds, ready to be edited where it is read.
+			expect(editor()?.value).toBe('=[units] * 2');
+		});
+
+		it('leaves an fx that cannot be edited alone', () => {
+			host.formulas.set(true);
+			host.columns.update((columns) => [
+				...columns,
+				{
+					key: 'vat',
+					header: 'VAT',
+					kind: 'number' as const,
+					formula: '=[units] * 0.21',
+					cell: () => ({ value: null })
+				}
+			]);
+			fixture.detectChanges();
+
+			const fx = cell(0, 3).querySelector('.hub-spreadsheet__fx')!;
+
+			expect(fx.classList).not.toContain('hub-spreadsheet__fx--editable');
+
+			fx.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+			fixture.detectChanges();
+
+			expect(editor()).toBeNull();
+		});
+
+		it('leaves the fx off when the sheet does not read formulas', () => {
+			host.columns.update((columns) => [
+				...columns,
+				{ key: 'calc', header: 'Cálculo', cell: (row: Line) => ({ value: (row as never)['calc'] ?? null }) }
+			]);
+			host.rows.update((rows) => rows.map((row) => ({ ...row, calc: '=[units] * 2' })));
+			fixture.detectChanges();
+
+			// Read as text, not as a formula, so there is nothing worked out to mark.
+			expect(cell(0, 3).querySelector('.hub-spreadsheet__fx')).toBeNull();
 		});
 
 		it('adds a whole column up', () => {

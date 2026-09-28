@@ -59,6 +59,8 @@
 	$token-column-color: null,
 	$token-coordinate-color: null,
 	$token-text-color: null,
+	$formula-bg: null,
+	$formula-color: null,
 	// ── The structural menu ──
 	$menu-bg: null,
 	$menu-color: null,
@@ -190,6 +192,12 @@
 	}
 	@if $token-text-color != null {
 		--hub-spreadsheet-token-text-color: #{$token-text-color};
+	}
+	@if $formula-bg != null {
+		--hub-spreadsheet-formula-bg: #{$formula-bg};
+	}
+	@if $formula-color != null {
+		--hub-spreadsheet-formula-color: #{$formula-color};
 	}
 
 	// The structural menu

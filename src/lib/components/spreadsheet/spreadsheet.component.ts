@@ -134,6 +134,7 @@ const FIRST_PASS_ROW_HEIGHT = 32;
 		'[attr.dir]': 'forcedDirection()',
 		'[class.hub-spreadsheet--readonly]': 'readonly()',
 		'[class.hub-spreadsheet--editing]': 'editing()',
+		'[class.hub-spreadsheet--formula]': 'writingFormula()',
 		'[class.hub-spreadsheet--virtual]': 'virtual()',
 		'[class.hub-spreadsheet--rtl]': 'rtl()',
 		'(document:mouseup)': 'endDrag()',
@@ -753,6 +754,84 @@ export class HubSpreadsheetComponent<TRow> {
 		}
 	}
 
+	/**
+	 * Where the coordinate badges go, in the host's own coordinates, while a formula is written.
+	 *
+	 * The badges live outside the sheet's frame rather than in its cells — so the frame stays
+	 * between them and the table — which also means nothing lines them up for us: every position is
+	 * measured off the drawn table. `start` is from the table's leading edge (either one: the sheet
+	 * may run the other way), `top` from its top.
+	 */
+	protected readonly coordColumns = signal<
+		readonly { readonly start: number; readonly width: number; readonly letter: string; readonly alias: string }[]
+	>([]);
+	protected readonly coordRows = signal<
+		readonly { readonly top: number; readonly height: number; readonly number: number }[]
+	>([]);
+
+	private readonly measureCoords = afterRenderEffect({
+		read: () => {
+			if (!this.writingFormula()) {
+				if (this.coordColumns().length) {
+					this.coordColumns.set([]);
+				}
+
+				if (this.coordRows().length) {
+					this.coordRows.set([]);
+				}
+
+				return;
+			}
+
+			const host = this.#host.nativeElement;
+			const frame = host.getBoundingClientRect();
+			const rtl = this.rtl();
+			const columns = this.columns();
+			const drawn = this.drawnRows();
+
+			this.coordColumns.set(
+				[...host.querySelectorAll<HTMLElement>('.hub-spreadsheet__header[data-header]')].map((cell) => {
+					const box = cell.getBoundingClientRect();
+					const index = Number(cell.dataset['header']);
+
+					return {
+						start: Math.round(rtl ? frame.right - box.right : box.left - frame.left),
+						width: Math.round(box.width),
+						letter: columnLabel(index),
+						alias: columns[index]?.key ?? ''
+					};
+				})
+			);
+
+			this.coordRows.set(
+				[...host.querySelectorAll<HTMLElement>('.hub-spreadsheet__row')].map((row, position) => {
+					const box = row.getBoundingClientRect();
+
+					return {
+						top: Math.round(box.top - frame.top),
+						height: Math.round(box.height),
+						number: (drawn[position] ?? position) + 1
+					};
+				})
+			);
+		}
+	});
+
+	/**
+	 * Puts the list of suggestions back on its cell once the frame has shifted for a formula.
+	 *
+	 * The list is placed from the cell's own rectangle, and writing the first `=` moves every cell
+	 * down and in to make room for the coordinates — so the place the list was given when the cell
+	 * opened is a place the cell has since left.
+	 */
+	private readonly placeSuggestionsOnRender = afterRenderEffect({
+		read: () => {
+			if (this.writingFormula() && this.suggesting()) {
+				this.placeSuggestions();
+			}
+		}
+	});
+
 	/** The letters a column answers to in a formula: A, B … Z, AA. */
 	protected columnLetter(index: number): string {
 		return columnLabel(index);
@@ -764,9 +843,9 @@ export class HubSpreadsheetComponent<TRow> {
 	 * Nothing when no formula is being written: the badge also shows outside one, as a reading of
 	 * what the column is called, and a click there has nothing to write into.
 	 */
-	protected insertAlias(column: HubSpreadsheetColumn<TRow>): void {
+	protected insertAlias(alias: string): void {
 		if (this.writingFormula()) {
-			this.useSuggestion({ label: column.key, kind: 'column', insert: `[${column.key}]` });
+			this.useSuggestion({ label: alias, kind: 'column', insert: `[${alias}]` });
 		}
 	}
 
@@ -892,6 +971,23 @@ export class HubSpreadsheetComponent<TRow> {
 			bottom: above ? window.innerHeight - cell.top : null,
 			maxWidth: Math.max(width, window.innerWidth - x)
 		});
+	}
+
+	/**
+	 * Whether a cell is worked out from a formula rather than typed.
+	 *
+	 * Two ways to be one: the row holds the text of a formula, or the column declares one and every
+	 * cell of it answers with it. Only when the sheet reads formulas at all — with that off, a
+	 * leading `=` is just the character somebody typed, and marking it would be a lie.
+	 */
+	protected isFormulaCell(row: number, col: number): boolean {
+		if (!this.formulas()) {
+			return false;
+		}
+
+		const cell = this.grid()[row]?.[col];
+
+		return !!cell && (isFormula(cell.value) || !!this.columns()[col]?.formula);
 	}
 
 	/** Whether a cell is showing a formula that could not be worked out. */
@@ -1346,6 +1442,25 @@ export class HubSpreadsheetComponent<TRow> {
 		}
 
 		return !this.readonly() && !!this.grid()[row]?.[col]?.editable;
+	}
+
+	/**
+	 * Opens the cell the `fx` marks for writing, so the formula is edited where it is read.
+	 *
+	 * Nothing on a cell that refuses to open: a column that carries its own formula answers the same
+	 * in every row and has nothing to type over, and its mark says so by not taking the pointer.
+	 */
+	protected editFormula(row: number, col: number, event: Event): void {
+		// The mark sits inside the cell, so the press must not reach the cell and be taken for a pick.
+		event.preventDefault();
+		event.stopPropagation();
+
+		if (!this.canEdit(row, col)) {
+			return;
+		}
+
+		this.moveTo({ row, col }, false);
+		this.startEdit(undefined);
 	}
 
 	protected onKeydown(event: KeyboardEvent): void {

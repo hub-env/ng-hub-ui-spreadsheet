@@ -84,7 +84,7 @@ That split is deliberate. It is what lets the same component serve an invoice, a
 - **Structured output by alias**: `{ price: 12, units: 3 }`, not a grid of coordinates.
 - **Real grid semantics** — `role="grid"`, row and column indices, `aria-selected`, a roving tab stop — so a screen reader can navigate it.
 - **Input-method safe.** The `Enter` that confirms a Chinese, Japanese or Korean character does not commit the cell.
-- **67 CSS variables** that inherit from `--hub-table-*` before falling back to the design system.
+- **69 CSS variables** that inherit from `--hub-table-*` before falling back to the design system.
 - **Out to a real `.xlsx` and back**, with figures as figures and dates as dates — and to CSV, with the separator the reader's locale expects. The zip and the XML are written here, so exporting brings no dependency.
 - **No `@angular/cdk`.** The grid primitives are in `ng-hub-ui-utils`.
 

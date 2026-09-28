@@ -53,23 +53,6 @@
 						(mouseenter)="onHeaderMouseEnter(columnIndex)"
 						[attr.aria-colindex]="columnIndex + 1"
 					>
-						<!-- The letter this column answers to and the name a formula calls it by, in a
-						badge over the header, while a cell is open. Clicking it writes the alias into a
-						formula being written, because the alternative is knowing it by heart. Decorative:
-						the grid already names every cell by its column index. -->
-						@if (editing()) {
-							<button
-								class="hub-spreadsheet__coord hub-spreadsheet__coord--column"
-								type="button"
-								tabindex="-1"
-								aria-hidden="true"
-								(mousedown)="$event.preventDefault(); insertAlias(column)"
-							>
-								<span class="hub-spreadsheet__coord-letter">{{ columnLetter(columnIndex) }}</span>
-								<span class="hub-spreadsheet__coord-alias">{{ column.key }}</span>
-							</button>
-						}
-
 						<span [class.hub-spreadsheet__header-text--hidden]="column.headerHidden">
 							{{ column.header }}
 						</span>
@@ -180,16 +163,6 @@
 								(dblclick)="onDoubleClick()"
 								(contextmenu)="onContextMenu($event, rowIndex, colIndex)"
 							>
-								<!-- The row's own number, in a badge out to the leading edge while a cell
-								is open, so a reference can be read off the sheet instead of counted. In the
-								first column's cell it rides with the row and drops into the room the shifted
-								table leaves. Decorative: the row index is already on the grid row. -->
-								@if (editing() && colIndex === 0) {
-									<span class="hub-spreadsheet__coord hub-spreadsheet__coord--row" aria-hidden="true">
-										{{ rowIndex + 1 }}
-									</span>
-								}
-
 								@if (editing() && isActive(rowIndex, colIndex)) {
 									@if (editorFor(colIndex); as custom) {
 										<!-- The host supplied an editor for this column. It reports a value through
@@ -315,6 +288,22 @@
 										></span>
 									}
 								}
+
+								<!-- A cell worked out from a formula rather than typed, marked with a small `fx`
+								in its corner. Shown on the cell under the pointer only: a mark on every formula
+								cell at once would read as content. Pressing it opens the cell for writing, if the
+								formula can be edited at all. Hidden from assistive technology — the value is what
+								matters, and the marker says nothing a reader needs. -->
+								@if (isFormulaCell(rowIndex, colIndex)) {
+									<button
+										class="hub-spreadsheet__fx"
+										type="button"
+										tabindex="-1"
+										aria-hidden="true"
+										[class.hub-spreadsheet__fx--editable]="canEdit(rowIndex, colIndex)"
+										(mousedown)="editFormula(rowIndex, colIndex, $event)"
+									></button>
+								}
 							</td>
 						}
 					}
@@ -338,6 +327,35 @@
 		</tbody>
 	</table>
 </div>
+
+<!-- The coordinates, outside the sheet's frame while a formula is written: a column's letter and the
+alias a formula calls it by over the table, the row's number down its leading edge. The viewport
+shifts to make room, so the frame stays between these and the table. Measured off the drawn table
+(the grid already names every cell by its indices, so these are decoration), and the column badge is
+clickable to write its alias into the formula. -->
+@if (writingFormula()) {
+	<div class="hub-spreadsheet__coords" aria-hidden="true">
+		@for (column of coordColumns(); track $index) {
+			<button
+				class="hub-spreadsheet__coord hub-spreadsheet__coord--column"
+				type="button"
+				tabindex="-1"
+				[style.--coord-start]="column.start + 'px'"
+				[style.--coord-width]="column.width + 'px'"
+				(mousedown)="$event.preventDefault(); insertAlias(column.alias)"
+			>
+				<span class="hub-spreadsheet__coord-letter">{{ column.letter }}</span>
+				<span class="hub-spreadsheet__coord-alias">{{ column.alias }}</span>
+			</button>
+		}
+
+		@for (row of coordRows(); track $index) {
+			<span class="hub-spreadsheet__coord-row" [style.inset-block-start.px]="row.top" [style.block-size.px]="row.height">
+				<span class="hub-spreadsheet__coord hub-spreadsheet__coord--row">{{ row.number }}</span>
+			</span>
+		}
+	</div>
+}
 
 @if (suggesting()) {
 	<!-- What can go into the formula being written. Anchored to the host, never to the cell: drawn

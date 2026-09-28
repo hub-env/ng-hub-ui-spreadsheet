@@ -1,5 +1,30 @@
 # Changelog
 
+## [22.2.0] - 2026-09-27
+
+### Added
+
+- **The cells that hold a formula say so.** A small rounded `fx` sits in the top corner of a formula
+  cell, shown while the pointer is on it, so a reader can tell what is worked out from what was
+  typed without opening the cell. Pressing it opens the cell on its formula, ready to be edited —
+  and on a cell whose formula cannot be edited, a column that carries its own, the mark does not
+  take the pointer at all. It takes two tokens of its own, `--hub-spreadsheet-formula-bg` and
+  `--hub-spreadsheet-formula-color`, with their mixin parameters. Only when the sheet reads
+  formulas: with that off, a leading `=` is just a character somebody typed.
+
+### Fixed
+
+- **The coordinates come out only for a formula.** They were drawn whenever a cell was open, which
+  put a letters-and-numbers frame around a word somebody was only correcting. Now they wait for the
+  first `=`: a plain edit has no reference to read off or point at.
+- **The coordinates are drawn outside the frame.** They sat inside the sheet's frame, over the
+  header and the first column. The whole frame shifts down and in a touch now, and the badges — a
+  column's letter and alias, a row's number — float outside it, so the frame stays between them and
+  the table, which is what makes them read as a ruler rather than as cells.
+- **The list of what can go into a formula follows the frame.** Writing the first `=` moves the
+  whole sheet, and the list was left where the cell had been. It is placed again once the frame has
+  shifted, so it hangs off the cell where the cell now is.
+
 ## [22.1.0] - 2026-09-27
 
 ### Added

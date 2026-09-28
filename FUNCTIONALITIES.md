@@ -92,9 +92,9 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 | **Accessibility** | `role="grid"`, row and column indices, `aria-selected`                  |     ✅      |       ❌        |
 |                   | Roving tab stop                                                         |     ✅      |       ❌        |
 |                   | `aria-readonly` and `aria-invalid`                                      |     ✅      |       ❌        |
-| **Styling**       | 67 CSS variables, inheriting from `--hub-table-*`                       |     ✅      |       ❌        |
+| **Styling**       | 69 CSS variables, inheriting from `--hub-table-*`                       |     ✅      |       ❌        |
 |                   | Dark mode through the design system                                     |     ✅      |       ❌        |
-|                   | Sass theming mixin (`hub-spreadsheet-theme`, 65 parameters)             |     ✅      |       ✅        |
+|                   | Sass theming mixin (`hub-spreadsheet-theme`, 67 parameters)             |     ✅      |       ✅        |
 |                   | Themeable from an ancestor: `:root`, a wrapper class, a route           |     ✅      |       ✅        |
 | **Forms**         | Per-cell errors from any source (`errors`)                              |     ✅      |       ✅        |
 |                   | Signal Forms field-tree mapping (`spreadsheetFieldErrors`)              |     ✅      |       ✅        |

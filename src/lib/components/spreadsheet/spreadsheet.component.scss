@@ -91,6 +91,12 @@ $token-column-color: var(--hub-spreadsheet-token-column-color, var(--hub-sys-col
 $token-coordinate-color: var(--hub-spreadsheet-token-coordinate-color, var(--hub-sys-color-success, #1a7f37));
 $token-text-color: var(--hub-spreadsheet-token-text-color, var(--hub-sys-color-danger, #b3261e));
 
+// ── The mark on a cell that holds a formula ──
+// Tinted with the accent and standing on it, so the little `fx` reads as a note about the cell
+// rather than as part of its value.
+$formula-bg: var(--hub-spreadsheet-formula-bg, color-mix(in srgb, #{$cursor-color} 14%, #{$bg}));
+$formula-color: var(--hub-spreadsheet-formula-color, #{$cursor-color});
+
 // ── A cell that is wrong ──
 $invalid-color: var(--hub-spreadsheet-invalid-color, var(--hub-sys-color-danger, #b3261e));
 $invalid-border-width: var(--hub-spreadsheet-invalid-border-width, 1px);
@@ -255,44 +261,56 @@ $frozen-divider-width: var(--hub-spreadsheet-frozen-divider-width, 2px);
 	}
 }
 
-// The room the coordinate badges need, taken from the table's own margins while a cell is open —
-// the table shifts by this much and the badges sit in what it left. Kept as Sass rather than tokens:
-// they are a piece of the sheet's own drawing, not a look a project themes.
+// The room the coordinate badges need, taken as the frame's own margins while a formula is written
+// — the whole bordered viewport shifts down and in by this much, leaving the badges outside its
+// frame. Kept as Sass rather than tokens: a piece of the sheet's own drawing, not a themed look.
 $coord-gutter: 2.6rem;
-// How far the badge sits from the column it names. Enough that the two read as separate things
-// rather than as a cell and its shadow.
+// How far a badge sits from the table it names. Enough that the two read as separate things rather
+// than as a cell and its shadow.
 $coord-gap: 0.45rem;
 // One height for every coordinate badge, and a strip tall enough to hold one with the same gap
 // above and below it, so a column's badge and a row's badge are the same thing to look at.
 $coord-badge: 1.9rem;
 $coord-strip: $coord-badge + $coord-gap * 2;
 
-// The table, shifted down and in while a cell is open, so the badges have somewhere to be without
-// sitting over a column or swallowing one. Animated, because a jump would move the cell the reader
-// is writing in out from under the caret.
-:host(.hub-spreadsheet--editing) .hub-spreadsheet__table {
-	margin-block-start: #{$coord-strip};
-	margin-inline-start: #{$coord-gutter};
+// Room for the badges, as padding on the host rather than a margin on the frame — a margin there
+// collapses straight out through the host and moves the whole sheet down the page instead of
+// leaving the room inside it.
+:host(.hub-spreadsheet--formula) {
+	padding-block-start: #{$coord-strip};
+	padding-inline-start: #{$coord-gutter};
 }
 
-.hub-spreadsheet__table {
-	transition:
-		margin-block-start 0.2s ease,
-		margin-inline-start 0.2s ease;
+// The coordinate layer, over the host and outside that frame: a strip across the top for the column
+// badges and a gutter down the leading edge for the row numbers. Its own positions are measured.
+.hub-spreadsheet__coords {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	pointer-events: none;
 }
 
-// A coordinate badge: the row's number, or a column's letter and alias. Drawn only while a cell is
-// open, in the room the shifted table left. Decorative — the grid already names every cell by its
-// indices — and animated in, so the sheet opening reads as the coordinates arriving.
+// One row's number box: as tall as the row it names, so the badge inside can sit at its middle.
+.hub-spreadsheet__coord-row {
+	position: absolute;
+	inset-inline-start: #{$coord-gap};
+	display: flex;
+	align-items: center;
+	inline-size: calc(#{$coord-gutter} - #{$coord-gap} * 2);
+}
+
+// A coordinate badge: the row's number, or a column's letter and alias. Decorative — the grid
+// already names every cell by its indices — and animated in, so writing a formula reads as the
+// coordinates arriving. Where it sits along the strip is measured; this only says how it looks.
 .hub-spreadsheet__coord {
 	position: absolute;
-	z-index: 5;
 	display: inline-flex;
 	gap: 0.3rem;
 	align-items: center;
 	justify-content: center;
+	block-size: #{$coord-badge};
 	// Tinted towards the accent rather than the header's own grey, so a badge reads as something the
-	// sheet put there and not as another cell; and bordered, so it stands off the column it names.
+	// sheet put there and not as another cell; and bordered, so it stands off the table it names.
 	border: #{$border-width} solid color-mix(in srgb, #{$cursor-color} 22%, #{$bg});
 	border-radius: 0.4rem;
 	background: color-mix(in srgb, #{$cursor-color} 9%, #{$bg});
@@ -304,26 +322,24 @@ $coord-strip: $coord-badge + $coord-gap * 2;
 	font-variant-numeric: tabular-nums;
 	line-height: 1;
 	white-space: nowrap;
+	pointer-events: auto;
 	animation: hub-spreadsheet-coord-in 0.18s ease both;
 }
 
-// The letter and alias over a column, in the strip above the header. Held in by a gap on all four
-// sides — the same one the row badges keep — so two neighbours never touch.
+// The letter and alias over a column. Its start and width are measured off the header and handed in
+// as `--coord-start` and `--coord-width`, held in by the same gap on the sides that the row badges
+// keep top and bottom, so two neighbours never touch.
 .hub-spreadsheet__coord--column {
-	inset-block-start: calc(#{$coord-strip} * -1 + #{$coord-gap});
-	inset-inline-start: #{$coord-gap};
-	inline-size: calc(100% - #{$coord-gap} * 2);
-	block-size: #{$coord-badge};
+	inset-block-start: #{$coord-gap};
+	inset-inline-start: calc(var(--coord-start, 0px) + #{$coord-gap});
+	inline-size: calc(var(--coord-width, 0px) - #{$coord-gap} * 2);
 	cursor: default;
 }
 
-// The row's number, in the gutter the table left down its leading edge. Centred in its row and as
-// tall as a column's badge, rather than stretched to the row.
+// The row's number, down the leading edge, at the measured top of its row.
 .hub-spreadsheet__coord--row {
-	inset-block-start: calc(50% - #{$coord-badge} / 2);
-	inset-inline-start: calc(#{$coord-gutter} * -1 + #{$coord-gap});
-	inline-size: calc(#{$coord-gutter} - #{$coord-gap} * 2);
-	block-size: #{$coord-badge};
+	position: relative;
+	inline-size: 100%;
 }
 
 // The letter is the coordinate proper, so it carries a touch more weight than the alias; the two
@@ -691,6 +707,44 @@ $coord-strip: $coord-badge + $coord-gap * 2;
 .hub-spreadsheet__secondary {
 	display: block;
 	opacity: 0.75;
+}
+
+// The `fx` on a cell that holds a formula: a small rounded badge on the corner, off the cell's own
+// edges. Its text is a pseudo-element on purpose — a marker drawn with the mouse is not part of what
+// the cell says, and a letter that copies out with the value would. Only on the cell under the
+// pointer: a mark on every formula cell at once reads as content.
+.hub-spreadsheet__fx {
+	position: absolute;
+	inset-block-start: 2px;
+	inset-inline-end: 2px;
+	z-index: 1;
+	padding: 0 0.3rem;
+	border: 0;
+	border-radius: 0.3rem;
+	background: #{$formula-bg};
+	color: #{$formula-color};
+	font-size: 0.5625rem;
+	font-style: italic;
+	font-weight: 600;
+	line-height: 1.4;
+	opacity: 0;
+	// Out of the way until it can be used: a cell whose formula cannot be edited keeps its corner to
+	// be clicked like any other part of the cell.
+	pointer-events: none;
+	transition: opacity 0.12s ease;
+
+	&::before {
+		content: 'fx';
+	}
+}
+
+.hub-spreadsheet__cell:hover > .hub-spreadsheet__fx {
+	opacity: 1;
+}
+
+.hub-spreadsheet__fx--editable {
+	cursor: pointer;
+	pointer-events: auto;
 }
 
 .hub-spreadsheet__editor {

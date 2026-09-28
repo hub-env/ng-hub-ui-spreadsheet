@@ -84,7 +84,7 @@ Esa separación es deliberada. Es lo que permite que el mismo componente sirva p
 - **Salida estructurada por alias**: `{ price: 12, units: 3 }`, no una rejilla de coordenadas.
 - **Semántica de rejilla real** —`role="grid"`, índices de fila y columna, `aria-selected`, una parada de tabulación que viaja— para que un lector de pantalla pueda recorrerla.
 - **A prueba de métodos de escritura.** El `Intro` que confirma un carácter chino, japonés o coreano no confirma la celda.
-- **67 variables CSS** que heredan de `--hub-table-*` antes de caer en el sistema de diseño.
+- **69 variables CSS** que heredan de `--hub-table-*` antes de caer en el sistema de diseño.
 - **Salida a un `.xlsx` de verdad y vuelta**, con los números como números y las fechas como fechas — y a CSV, con el separador que espera el idioma de quien lo abre. El zip y el XML se escriben aquí, así que exportar no trae ninguna dependencia.
 - **Sin `@angular/cdk`.** Las primitivas de rejilla están en `ng-hub-ui-utils`.
 
