@@ -1,5 +1,37 @@
 # Changelog
 
+## [22.4.0] - 2026-09-28
+
+### Added
+
+- **A row opens in place, with `expansion` and `expandedRow`.** A template drawn under the row
+  itself, for what a row holds behind its figures — a detail panel, the lines behind a total, a
+  breakdown — where the row is rather than in a dialog over it, so the open row can still be read
+  against the one above. `expandedRow` is two-way and names the row by its key, so the owner can
+  open one from its own code and hear it when the reader does; one row at a time. The template is
+  handed the row, its index, its key and a way to close it, and a row opened through a cell's own
+  template is the owner's to open: the sheet reports the intent and the owner writes `expandedRow`.
+
+- **A cell that opens onto something, said by its template.** A cell is drawn by the owner already —
+  `hubSpreadsheetCell` — so what a cell opens is drawn there too; what the sheet has to be told is
+  that it opens, with `hubSpreadsheetCellAction` on that template. Given, the sheet keeps `Enter`
+  for the cell instead of opening an editor the cell has not got, and reports the press through
+  `opened`; the template draws the way in — a link, a button — and calls `open()` from its context.
+  The sheet draws nothing itself and adds no string to its dictionary: the accessible name is the
+  owner's, as a header and a cell's text already are.
+
+- **Columns and rows fold by outline, the way Excel's grouping works.** A column carries a `level`,
+  and an accessor — `rowLevel`, like `rowKey` — reports one for a row; a run of neighbours at a
+  level is a group, and the sheet draws the toggle that folds it: over the column headers, and at
+  the leading edge of the row that folds what is under it. Which groups are folded is the owner's,
+  through `collapsedColumns` and `collapsedRows`, both two-way, so a group can be folded from the
+  owner's own code and the reader's fold heard. A group that is out is tinted, so the run reads as
+  one thing; a group that is folded leaves a line where it was — vertical for a run of columns,
+  horizontal for a run of rows — at the border it collapsed on. A folded group is simply not drawn,
+  and the change is animated through the View Transition API where the browser has it. Nothing
+  carries a string of its own: the toggles' names are the owner's (`columnToggleLabel`,
+  `rowToggleLabel`).
+
 ## [22.2.0] - 2026-09-27
 
 ### Added

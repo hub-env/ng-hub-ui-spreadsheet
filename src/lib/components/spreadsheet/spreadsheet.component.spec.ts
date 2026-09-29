@@ -3,7 +3,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HubGridCoords, HubGridRange, HubGridSpan, provideHubTranslation } from 'ng-hub-ui-utils';
 import { locale as enLocale } from '../../assets/i18n/en';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { HubSpreadsheetColumn, HubSpreadsheetCommit, HubSpreadsheetPaste } from '../../models/spreadsheet.types';
+import {
+	HubSpreadsheetCellRef,
+	HubSpreadsheetColumn,
+	HubSpreadsheetCommit,
+	HubSpreadsheetPaste
+} from '../../models/spreadsheet.types';
 import { HubSpreadsheetStructureOptions } from '../../models/spreadsheet-structure';
 import { HubSpreadsheetMergeRequest } from '../../models/spreadsheet-spans';
 import { HubSpreadsheetComponent } from './spreadsheet.component';
@@ -51,6 +56,8 @@ function lines(): Line[] {
 			[rowHeight]="rowHeight()"
 			[editOn]="editOn()"
 			[direction]="direction()"
+			[expansion]="rowDetail"
+			[(expandedRow)]="expandedRow"
 			[resizableColumns]="resizableColumns()"
 			[reorderableColumns]="reorderableColumns()"
 			[(columnWidths)]="columnWidths"
@@ -60,6 +67,7 @@ function lines(): Line[] {
 			(commit)="commits.push($event)"
 			(pasted)="pastes.push($event)"
 			(cleared)="cleared.push($event)"
+			(opened)="openedCells.push($event)"
 			(selectionRangesChange)="ranges = $event"
 			(filled)="fills.push($event)"
 			(columnMoved)="moves.push($event)"
@@ -70,6 +78,10 @@ function lines(): Line[] {
 			(mergeRequested)="merges.push($event)"
 			(unmergeRequested)="unmerges.push($event)"
 		/>
+
+		<ng-template #rowDetail let-row let-index="index">
+			<span class="row-detail">{{ row.product }} · {{ index }}</span>
+		</ng-template>
 	`
 })
 class HostComponent {
@@ -95,6 +107,7 @@ class HostComponent {
 	readonly columnWidths = signal<Record<string, number>>({});
 	readonly canUndo = signal(false);
 	readonly canRedo = signal(false);
+	readonly expandedRow = signal<string | null>(null);
 	readonly rowKey = (row: Line) => row.id;
 
 	readonly columns = signal<HubSpreadsheetColumn<Line>[]>([
@@ -120,6 +133,7 @@ class HostComponent {
 	deletes: unknown[] = [];
 	merges: HubSpreadsheetMergeRequest[] = [];
 	unmerges: Array<readonly HubGridCoords[]> = [];
+	openedCells: HubSpreadsheetCellRef<Line>[] = [];
 }
 
 describe('HubSpreadsheetComponent', () => {
@@ -2495,6 +2509,158 @@ describe('HubSpreadsheetComponent', () => {
 			fixture.detectChanges();
 
 			expect(cell(1, 1).getAttribute('tabindex')).toBe('0');
+		});
+	});
+
+	describe('a cell that opens through its template, and a row opened in place', () => {
+		it('keeps Enter for a templated cell that says it opens, and reports the press from the template', async () => {
+			@Component({
+				standalone: true,
+				imports: [HubSpreadsheetComponent, HubSpreadsheetCellDirective],
+				template: `
+					<hub-spreadsheet [rows]="rows()" [columns]="columns" [rowKey]="rowKey" (opened)="opened.push($event)">
+						<ng-template
+							hubSpreadsheetCell="product"
+							hubSpreadsheetCellAction="Ver detalle"
+							let-value
+							let-open="open"
+						>
+							<a class="way-in" (click)="open()">{{ value }}</a>
+						</ng-template>
+					</hub-spreadsheet>
+				`
+			})
+			class OpensHost {
+				readonly rows = signal<Line[]>(lines());
+				readonly rowKey = (row: Line) => row.id;
+				readonly opened: HubSpreadsheetCellRef<Line>[] = [];
+				readonly columns: HubSpreadsheetColumn<Line>[] = [
+					{ key: 'product', header: 'Producto', cell: (row) => ({ value: row.product }) },
+					{
+						key: 'units',
+						header: 'Unidades',
+						kind: 'number' as const,
+						cell: (row) => ({ value: row.units, editable: true })
+					}
+				];
+			}
+
+			await TestBed.resetTestingModule()
+				.configureTestingModule({ imports: [OpensHost], providers: [provideHubTranslation()] })
+				.compileComponents();
+
+			const drawn = TestBed.createComponent(OpensHost);
+			drawn.detectChanges();
+
+			const wayIn: HTMLElement = drawn.nativeElement.querySelector('[data-cell="0-0"] .way-in');
+
+			expect(wayIn).not.toBeNull();
+
+			wayIn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			drawn.detectChanges();
+
+			expect(drawn.componentInstance.opened.at(-1)).toMatchObject({ coords: { row: 0, col: 0 } });
+
+			// The way in the template drew is not the sheet's, so nothing was opened by it.
+			expect(drawn.nativeElement.querySelector('.hub-spreadsheet__editor')).toBeNull();
+
+			// The marked cell answers Enter with `opened` because it has no field to write in.
+			const opening: HTMLElement = drawn.nativeElement.querySelector('[data-cell="1-0"]');
+			opening.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			opening.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			drawn.nativeElement
+				.querySelector('.hub-spreadsheet__table')
+				?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			drawn.detectChanges();
+
+			expect(drawn.componentInstance.opened.at(-1)).toMatchObject({ coords: { row: 1, col: 0 } });
+
+			// A template on a column does not cost the editable cell beside it its editor.
+			const editable: HTMLElement = drawn.nativeElement.querySelector('[data-cell="0-1"]');
+			editable.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			editable.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			drawn.nativeElement
+				.querySelector('.hub-spreadsheet__table')
+				?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+			drawn.detectChanges();
+
+			expect(drawn.nativeElement.querySelector('[data-cell="0-1"] .hub-spreadsheet__editor')).not.toBeNull();
+		});
+
+		it('draws the open row under its own row, and only that one', () => {
+			host.expandedRow.set('b');
+			fixture.detectChanges();
+
+			const expansion: HTMLElement = fixture.nativeElement.querySelector('.hub-spreadsheet__expansion');
+
+			expect(fixture.nativeElement.querySelectorAll('.hub-spreadsheet__expansion')).toHaveLength(1);
+			expect(expansion.textContent).toContain('Arandela');
+			expect(expansion.textContent).toContain('1');
+
+			host.expandedRow.set(null);
+			fixture.detectChanges();
+
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__expansion')).toBeNull();
+		});
+	});
+
+	describe('an outline of columns and rows', () => {
+		it('takes a folded group of columns, and of rows, out of the document', async () => {
+			@Component({
+				standalone: true,
+				imports: [HubSpreadsheetComponent],
+				template: `
+					<hub-spreadsheet
+						[rows]="rows()"
+						[columns]="columns"
+						[rowKey]="rowKey"
+						[rowLevel]="rowLevel"
+						[(collapsedColumns)]="collapsed"
+						[(collapsedRows)]="folded"
+					/>
+				`
+			})
+			class OutlineHost {
+				readonly rows = signal<Line[]>(lines());
+				readonly rowKey = (row: Line) => row.id;
+				readonly rowLevel = (row: Line) => (row.id === 'b' || row.id === 'c' ? 1 : 0);
+				readonly collapsed = signal<readonly string[]>([]);
+				readonly folded = signal<readonly string[]>([]);
+				readonly columns: HubSpreadsheetColumn<Line>[] = [
+					{ key: 'product', header: 'Producto', cell: (row) => ({ value: row.product }) },
+					{ key: 'units', header: 'Unidades', cell: (row) => ({ value: row.units }) },
+					{ key: 'price', header: 'Precio', level: 1, cell: (row) => ({ value: row.price }) },
+					{ key: 'total', header: 'Total', level: 1, cell: (row) => ({ value: (row.units ?? 0) * (row.price ?? 0) }) }
+				];
+			}
+
+			await TestBed.resetTestingModule()
+				.configureTestingModule({ imports: [OutlineHost], providers: [provideHubTranslation()] })
+				.compileComponents();
+
+			const drawn = TestBed.createComponent(OutlineHost);
+			drawn.detectChanges();
+
+			const headers = () =>
+				[...drawn.nativeElement.querySelectorAll('.hub-spreadsheet__header')]
+					.map((cell: HTMLElement) => cell.textContent?.trim())
+					.filter(Boolean);
+			const rowCount = () => drawn.nativeElement.querySelectorAll('.hub-spreadsheet__row').length;
+
+			expect(headers()).toEqual(['Producto', 'Unidades', 'Precio', 'Total']);
+			expect(rowCount()).toBe(3);
+
+			// The two columns of the level-1 run fold as one, and their headers go with them.
+			drawn.componentInstance.collapsed.set(['1:price']);
+			drawn.detectChanges();
+
+			expect(headers()).toEqual(['Producto', 'Unidades']);
+
+			// The same for the rows, which fold from the level the accessor reports.
+			drawn.componentInstance.folded.set(['1:b']);
+			drawn.detectChanges();
+
+			expect(rowCount()).toBe(1);
 		});
 	});
 });

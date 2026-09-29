@@ -5,6 +5,7 @@ export type {
 	HubSpreadsheetCellState,
 	HubSpreadsheetColumn,
 	HubSpreadsheetCommit,
+	HubSpreadsheetExpansionContext,
 	HubSpreadsheetPaste,
 	HubSpreadsheetRecord,
 	HubSpreadsheetValue,

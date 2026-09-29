@@ -42,6 +42,7 @@
 						[class.hub-spreadsheet__header--frozen-edge]="isColumnEdge(columnIndex)"
 						[class.hub-spreadsheet__header--end]="column.align === 'end'"
 						[class.hub-spreadsheet__header--center]="column.align === 'center'"
+						[class.hub-spreadsheet__grouped]="groupedColumns().has(columnIndex)"
 						[style.inset-inline-start.px]="columnOffsetOf(columnIndex)"
 						[style.min-width]="column.minWidth"
 						[style.width.px]="widthOf(columnIndex)"
@@ -122,6 +123,7 @@
 
 							<td
 								class="hub-spreadsheet__cell"
+								[class.hub-spreadsheet__grouped]="groupedColumns().has(colIndex) || groupedRows().has(rowIndex)"
 								role="gridcell"
 								[attr.data-cell]="rowIndex + '-' + colIndex"
 								[attr.tabindex]="tabIndexOf(rowIndex, colIndex)"
@@ -312,6 +314,20 @@
 						<td class="hub-spreadsheet__spacer" role="presentation" aria-hidden="true"></td>
 					}
 				</tr>
+
+				<!-- What the row holds behind its figures, opened in place. A dialog used to be the
+				only shape for this and it is the wrong one: it hides the row it is about and cannot
+				be read against the one above. -->
+				@if (expansion() && isExpanded(rowIndex)) {
+					<tr class="hub-spreadsheet__expansion" role="row">
+						<td class="hub-spreadsheet__expansion-cell" role="gridcell" [attr.colspan]="drawnCellCount()">
+							<ng-container
+								[ngTemplateOutlet]="expansion()!"
+								[ngTemplateOutletContext]="expansionContext(rowIndex)"
+							/>
+						</td>
+					</tr>
+				}
 			} @empty {
 				<tr class="hub-spreadsheet__row hub-spreadsheet__row--empty" role="row">
 					<td class="hub-spreadsheet__empty" role="gridcell" [attr.colspan]="bounds().cols || 1">
@@ -353,6 +369,89 @@ clickable to write its alias into the formula. -->
 			<span class="hub-spreadsheet__coord-row" [style.inset-block-start.px]="row.top" [style.block-size.px]="row.height">
 				<span class="hub-spreadsheet__coord hub-spreadsheet__coord--row">{{ row.number }}</span>
 			</span>
+		}
+	</div>
+}
+
+@if (expandToggle() && expansion()) {
+	<!-- PROTOTYPE: a floating toggle per row, over the frame's leading edge, that opens and closes
+	the row's expansion. Its place is measured against the frame and put back on every scroll, so it
+	stays where its row is rather than travelling with the cells. -->
+	<div class="hub-spreadsheet__toggles">
+		@for (toggle of expansionToggles(); track toggle.key) {
+			<button
+				class="hub-spreadsheet__toggle hub-spreadsheet__toggle--start"
+				type="button"
+				tabindex="-1"
+				[class.hub-spreadsheet__toggle--open]="toggle.open"
+				[style.inset-block-start.px]="toggle.top"
+				[style.block-size.px]="toggle.height"
+				[attr.aria-expanded]="toggle.open"
+				[attr.aria-label]="expandToggleLabel() || null"
+				(mousedown)="$event.preventDefault(); $event.stopPropagation()"
+				(click)="toggleByKey(toggle.key)"
+			></button>
+			<button
+				class="hub-spreadsheet__toggle hub-spreadsheet__toggle--end"
+				type="button"
+				tabindex="-1"
+				[class.hub-spreadsheet__toggle--open]="toggle.open"
+				[style.inset-block-start.px]="toggle.top"
+				[style.block-size.px]="toggle.height"
+				[attr.aria-expanded]="toggle.open"
+				[attr.aria-label]="expandToggleLabel() || null"
+				(mousedown)="$event.preventDefault(); $event.stopPropagation()"
+				(click)="toggleByKey(toggle.key)"
+			></button>
+		}
+	</div>
+}
+
+@if (rowGroupToggles().length) {
+	<!-- The row groups: a line across the sheet where a run is folded away, and a button at the
+	middle of the row whose fold it is. -->
+	<div class="hub-spreadsheet__row-toggles">
+		@for (toggle of rowGroupToggles(); track toggle.id) {
+			@if (!toggle.open) {
+				<span
+					class="hub-spreadsheet__fold hub-spreadsheet__fold--row"
+					[style.inset-block-start.px]="toggle.toggle"
+				></span>
+			}
+			<button
+				class="hub-spreadsheet__row-toggle"
+				type="button"
+				tabindex="-1"
+				[class.hub-spreadsheet__row-toggle--open]="toggle.open"
+				[style.inset-block-start.px]="toggle.toggle"
+				[attr.aria-expanded]="toggle.open"
+				[attr.aria-label]="rowToggleLabel() || null"
+				(mousedown)="$event.preventDefault(); $event.stopPropagation()"
+				(click)="toggleRowGroup(toggle.id)"
+			></button>
+		}
+	</div>
+}
+
+@if (columnToggles().length) {
+	<!-- The column groups: a bracket over the headers across the run it folds — a coloured mark
+	wider than zero once the run is folded away — and a button at the bracket's end. -->
+	<div class="hub-spreadsheet__column-toggles">
+		@for (toggle of columnToggles(); track toggle.id) {
+			@if (!toggle.open) {
+				<span class="hub-spreadsheet__fold" [style.inset-inline-start.px]="toggle.toggle"></span>
+			}
+			<button
+				class="hub-spreadsheet__column-toggle"
+				type="button"
+				tabindex="-1"
+				[class.hub-spreadsheet__column-toggle--open]="toggle.open"
+				[style.inset-inline-start.px]="toggle.toggle"
+				[attr.aria-expanded]="toggle.open"
+				[attr.aria-label]="columnToggleLabel() || null"
+				(mousedown)="$event.preventDefault(); $event.stopPropagation()"
+				(click)="toggleColumnGroup(toggle.id)"
+			></button>
 		}
 	</div>
 }

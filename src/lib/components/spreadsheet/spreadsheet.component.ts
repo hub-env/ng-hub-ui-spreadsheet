@@ -5,6 +5,7 @@ import {
 	DestroyRef,
 	ElementRef,
 	Injector,
+	TemplateRef,
 	afterNextRender,
 	afterRenderEffect,
 	booleanAttribute,
@@ -72,12 +73,14 @@ import {
 	nextColumnKey,
 	resolveInsertIndex
 } from '../../models/spreadsheet-structure';
+import { collapsedMembers, HubOutlineGroup, outlineGroups } from '../../models/outline-groups';
 import {
 	HubSpreadsheetCell,
 	HubSpreadsheetCellRef,
 	HubSpreadsheetCellState,
 	HubSpreadsheetColumn,
 	HubSpreadsheetCommit,
+	HubSpreadsheetExpansionContext,
 	HubSpreadsheetOption,
 	HubSpreadsheetPaste,
 	HubSpreadsheetValue,
@@ -360,10 +363,83 @@ export class HubSpreadsheetComponent<TRow> {
 	 */
 	readonly editOn = input<'click' | 'double-click'>('double-click');
 
+	/**
+	 * A template drawn inside a row that is open, under the row itself.
+	 *
+	 * What a row holds behind its figures, laid out where the row is: a detail panel, the lines of
+	 * an order, a breakdown. In place and not in a dialog over it, so the open row can still be
+	 * read against the one above. The row opens when a cell reports an `action` or when the owner
+	 * writes {@link expandedRow} itself, and the template is handed the row, its index and a way
+	 * to close it.
+	 */
+	readonly expansion = input<TemplateRef<HubSpreadsheetExpansionContext<TRow>> | null>(null);
+
+	/**
+	 * Which row is open, by its key, or null when none is.
+	 *
+	 * Two-way, so the owner can open a row from its own code — a filter that reveals a match, a
+	 * deep link — and hear about it when the reader opens or closes one. One row at a time: two
+	 * open rows would push each other off the screen and turn the sheet into a list of dialogs.
+	 */
+	readonly expandedRow = model<string | null>(null);
+
+	/**
+	 * PROTOTYPE — draw a floating toggle per row to open and close its expansion.
+	 *
+	 * Off unless asked for, so the sheet a host already has is untouched. The toggle is drawn by
+	 * the sheet and floats over the frame's leading edge, rather than being a control the owner
+	 * has to place.
+	 */
+	readonly expandToggle = input(false);
+
+	/** The accessible name of that toggle, the owner's string — the sheet keeps no dictionary. */
+	readonly expandToggleLabel = input('');
+
+	/**
+	 * Which column groups are folded, by group id.
+	 *
+	 * Two-way, so the owner can fold a group from its own code and hear it when the reader folds
+	 * one. The ids are the outline the columns' own `level`s make — see {@link columnGroups} — and a
+	 * sheet whose columns carry no level has no groups at all.
+	 */
+	readonly collapsedColumns = model<readonly string[]>([]);
+
+	/** The accessible name of a column group's toggle, the owner's string. */
+	readonly columnToggleLabel = input('');
+
+	/**
+	 * How deep a row sits in an outline: `1` inside one fold, `2` inside two, and `0` or nothing
+	 * outside every fold.
+	 *
+	 * An accessor rather than a field, because the rows are the owner's data and the sheet does not
+	 * get to add one.
+	 */
+	readonly rowLevel = input<(row: TRow) => number | undefined>(() => 0);
+
+	/**
+	 * Which row groups are folded, by group id.
+	 *
+	 * Two-way, as {@link collapsedColumns} is, and the ids are the outline the rows' own levels
+	 * make — see {@link rowGroups}.
+	 */
+	readonly collapsedRows = model<readonly string[]>([]);
+
+	/** The accessible name of a row group's toggle, the owner's string. */
+	readonly rowToggleLabel = input('');
+
 	/** A cell took a new value. */
 	readonly commit = output<HubSpreadsheetCommit<TRow>>();
 	/** A block was pasted. */
 	readonly pasted = output<HubSpreadsheetPaste<TRow>>();
+	/**
+	 * The reader asked to open what a cell points at.
+	 *
+	 * Raised by a cell that declares an `action`, with the pointer or with `Enter`. The sheet
+	 * reports and does no more: what a cell opens — a panel, a page, a dialog of the owner's — is
+	 * the owner's to open. A row that carries an expansion opens through {@link expandedRow}
+	 * instead, which is the sheet's own.
+	 */
+	readonly opened = output<HubSpreadsheetCellRef<TRow>>();
 	/** Delete was pressed over these cells, the editable ones of the selection. */
 	readonly cleared = output<HubSpreadsheetCellRef<TRow>[]>();
 	/** The selected rectangle changed; null when nothing is selected. */
@@ -504,7 +580,7 @@ export class HubSpreadsheetComponent<TRow> {
 		const total = this.rows().length;
 		const frozen = Math.min(this.frozenRows(), total);
 
-		if (!this.virtual()) {
+		if (!this.virtual() || this.hiddenRows().size) {
 			return { start: frozen, end: total - 1, before: 0, after: 0 };
 		}
 
@@ -539,7 +615,7 @@ export class HubSpreadsheetComponent<TRow> {
 		const frozen = Math.min(this.frozenColumns(), total);
 		const everything: HubGridWindow = { start: frozen, end: total - 1, before: 0, after: 0 };
 
-		if (!this.virtual()) {
+		if (!this.virtual() || this.hiddenColumns().size) {
 			return everything;
 		}
 
@@ -559,19 +635,90 @@ export class HubSpreadsheetComponent<TRow> {
 		return growWindowToSpans(window, this.spans(), 'col', widths, { pinned: frozen });
 	});
 
-	/** The column indices in the document, frozen ones first. */
+	/** The outline the columns' levels make: one group per run, at each level. */
+	protected readonly columnGroups = computed<readonly HubOutlineGroup[]>(() =>
+		outlineGroups(
+			this.columns().map((column) => column.level ?? 0),
+			(index) => this.columns()[index]?.key ?? String(index)
+		)
+	);
+
+	/** The columns a folded group takes out, by index. */
+	protected readonly hiddenColumns = computed<ReadonlySet<number>>(
+		() =>
+			new Set(
+				collapsedMembers(
+					this.columns().map((column) => column.level ?? 0),
+					this.columnGroups(),
+					this.collapsedColumns()
+				)
+			)
+	);
+
+	/** The outline the rows' levels make: one group per run, at each level. */
+	protected readonly rowGroups = computed<readonly HubOutlineGroup[]>(() =>
+		outlineGroups(
+			this.rows().map((row) => this.rowLevel()(row) ?? 0),
+			(index) => this.keys()[index]
+		)
+	);
+
+	/** The rows a folded group takes out, by index. */
+	protected readonly hiddenRows = computed<ReadonlySet<number>>(
+		() =>
+			new Set(
+				collapsedMembers(
+					this.rows().map((row) => this.rowLevel()(row) ?? 0),
+					this.rowGroups(),
+					this.collapsedRows()
+				)
+			)
+	);
+
+	/** The columns that belong to a group, so the run can be tinted while it is out. */
+	protected readonly groupedColumns = computed<ReadonlySet<number>>(() => {
+		const grouped = new Set<number>();
+
+		for (const group of this.columnGroups()) {
+			for (let index = group.start; index <= group.end; index++) {
+				grouped.add(index);
+			}
+		}
+
+		return grouped;
+	});
+
+	/** The rows that belong to a group. */
+	protected readonly groupedRows = computed<ReadonlySet<number>>(() => {
+		const grouped = new Set<number>();
+
+		for (const group of this.rowGroups()) {
+			for (let index = group.start; index <= group.end; index++) {
+				grouped.add(index);
+			}
+		}
+
+		return grouped;
+	});
+
+	/** The column indices in the document: frozen ones first, folded ones out. */
 	protected readonly drawnColumns = computed<number[]>(() => {
 		const total = this.columns().length;
 		const frozen = Math.min(this.frozenColumns(), total);
 		const window = this.columnWindow();
+		const hidden = this.hiddenColumns();
 		const drawn: number[] = [];
 
 		for (let index = 0; index < frozen; index++) {
-			drawn.push(index);
+			if (!hidden.has(index)) {
+				drawn.push(index);
+			}
 		}
 
 		for (let index = window.start; index <= window.end; index++) {
-			drawn.push(index);
+			if (!hidden.has(index)) {
+				drawn.push(index);
+			}
 		}
 
 		return drawn;
@@ -590,19 +737,24 @@ export class HubSpreadsheetComponent<TRow> {
 		return this.drawnColumns().length + (window.before > 0 ? 1 : 0) + (window.after > 0 ? 1 : 0);
 	});
 
-	/** The row indices in the document, frozen ones first. */
+	/** The row indices in the document: frozen ones first, folded ones out. */
 	protected readonly drawnRows = computed<number[]>(() => {
 		const total = this.rows().length;
 		const frozen = Math.min(this.frozenRows(), total);
 		const window = this.rowWindow();
+		const hidden = this.hiddenRows();
 		const drawn: number[] = [];
 
 		for (let index = 0; index < frozen; index++) {
-			drawn.push(index);
+			if (!hidden.has(index)) {
+				drawn.push(index);
+			}
 		}
 
 		for (let index = window.start; index <= window.end; index++) {
-			drawn.push(index);
+			if (!hidden.has(index)) {
+				drawn.push(index);
+			}
 		}
 
 		return drawn;
@@ -816,6 +968,246 @@ export class HubSpreadsheetComponent<TRow> {
 			);
 		}
 	});
+
+	/**
+	 * PROTOTYPE — where each row's floating toggle goes, measured the way the coordinates are.
+	 *
+	 * Against the host's frame rather than inside a cell, so the toggle floats over the edge of the
+	 * sheet instead of travelling with the cells, and re-measured as the sheet scrolls because the
+	 * effect reads the scroll signals.
+	 */
+	protected readonly expansionToggles = signal<
+		readonly { readonly top: number; readonly height: number; readonly key: string; readonly open: boolean }[]
+	>([]);
+
+	private readonly measureExpansionToggles = afterRenderEffect({
+		read: () => {
+			// Follow the sheet: reading the scroll puts the layer back on every scroll, the way the
+			// frame itself moves.
+			this.scrollTop();
+			this.scrollLeft();
+
+			if (!this.expandToggle() || !this.expansion()) {
+				if (this.expansionToggles().length) {
+					this.expansionToggles.set([]);
+				}
+
+				return;
+			}
+
+			const host = this.#host.nativeElement;
+			const frame = host.getBoundingClientRect();
+			const drawn = this.drawnRows();
+
+			this.expansionToggles.set(
+				[...host.querySelectorAll<HTMLElement>('.hub-spreadsheet__row')].map((row, position) => {
+					const box = row.getBoundingClientRect();
+					const index = drawn[position] ?? position;
+
+					return {
+						top: Math.round(box.top - frame.top),
+						height: Math.round(box.height),
+						key: this.keys()[index],
+						open: this.isExpanded(index)
+					};
+				})
+			);
+		}
+	});
+
+	/** Opens the row the toggle belongs to, or closes it when it was already the open one. */
+	protected toggleByKey(key: string): void {
+		this.expandedRow.set(this.expandedRow() === key ? null : key);
+	}
+
+	/**
+	 * Where each column group's toggle goes, measured off the headers it folds.
+	 *
+	 * At the trailing edge of the group, or — when the group is folded and has no header of its own
+	 * — at the trailing edge of the column before it, so the way back in stays where the group was.
+	 */
+	protected readonly columnToggles = signal<
+		readonly { readonly id: string; readonly toggle: number; readonly open: boolean }[]
+	>([]);
+
+	private readonly measureColumnToggles = afterRenderEffect({
+		read: () => {
+			this.scrollTop();
+			this.scrollLeft();
+
+			const groups = this.columnGroups();
+
+			if (!groups.length) {
+				if (this.columnToggles().length) {
+					this.columnToggles.set([]);
+				}
+
+				return;
+			}
+
+			const host = this.#host.nativeElement;
+			const frame = host.getBoundingClientRect();
+			const rtl = this.rtl();
+			const folded = new Set(this.collapsedColumns());
+			const headers = [...host.querySelectorAll<HTMLElement>('.hub-spreadsheet__header[data-header]')];
+
+			const boxAt = (index: number) => {
+				const cell = headers.find((one) => Number(one.dataset['header']) === index);
+
+				return cell ? cell.getBoundingClientRect() : null;
+			};
+			const leadingAt = (index: number): number | null => {
+				const box = boxAt(index);
+
+				return box ? Math.round(rtl ? frame.right - box.right : box.left - frame.left) : null;
+			};
+			const trailingAt = (index: number): number | null => {
+				if (index < 0) {
+					return 0;
+				}
+
+				const box = boxAt(index);
+
+				return box ? Math.round(rtl ? frame.right - box.left : box.right - frame.left) : null;
+			};
+
+			// A folded run is not drawn, so its edge is the one it left behind: the leading edge of
+			// the column that follows it, or the trailing edge of the one before when it was last.
+			const drawn = this.drawnColumns();
+			const boundaryOf = (group: HubOutlineGroup): number | null => {
+				const after = drawn.find((index) => index > group.end);
+
+				if (after !== undefined) {
+					return leadingAt(after);
+				}
+
+				const before = [...drawn].reverse().find((index) => index < group.start);
+
+				return before !== undefined ? trailingAt(before) : 0;
+			};
+
+			this.columnToggles.set(
+				groups
+					.map((group) => {
+						const open = !folded.has(group.id);
+						const toggle = open ? trailingAt(group.end) : boundaryOf(group);
+
+						return toggle === null ? null : { id: group.id, toggle, open };
+					})
+					.filter((one): one is { id: string; toggle: number; open: boolean } => one !== null)
+			);
+		}
+	});
+
+	/** Folds a column group away, or brings it back when it was folded. */
+	protected toggleColumnGroup(id: string): void {
+		this.animateFold(() =>
+			this.collapsedColumns.update((collapsed) =>
+				collapsed.includes(id) ? collapsed.filter((one) => one !== id) : [...collapsed, id]
+			)
+		);
+	}
+
+	/**
+	 * Runs a fold with the browser's own transition around it.
+	 *
+	 * The sheet draws one state or the other and nothing between: a folded group is simply not in
+	 * the document, so there is no width to animate. What it asks the browser for instead is a cross
+	 * -fade between the two states, through the View Transition API where it exists — and does the
+	 * fold with no transition where it does not, rather than leaving it undone.
+	 */
+	private animateFold(update: () => void): void {
+		const doc = document as Document & { startViewTransition?: (callback: () => void) => unknown };
+
+		if (typeof doc.startViewTransition === 'function') {
+			doc.startViewTransition(update);
+		} else {
+			update();
+		}
+	}
+
+	/**
+	 * Where each row group's toggle goes, measured off the rows it folds.
+	 *
+	 * At the vertical middle of the row whose fold it is, at the frame's leading edge — a handle on
+	 * the heading, not a cell's control.
+	 */
+	protected readonly rowGroupToggles = signal<
+		readonly { readonly id: string; readonly toggle: number; readonly open: boolean }[]
+	>([]);
+
+	private readonly measureRowGroupToggles = afterRenderEffect({
+		read: () => {
+			this.scrollTop();
+			this.scrollLeft();
+
+			const groups = this.rowGroups();
+
+			if (!groups.length) {
+				if (this.rowGroupToggles().length) {
+					this.rowGroupToggles.set([]);
+				}
+
+				return;
+			}
+
+			const host = this.#host.nativeElement;
+			const frame = host.getBoundingClientRect();
+			const rows = [...host.querySelectorAll<HTMLElement>('.hub-spreadsheet__row')];
+			const drawn = this.drawnRows();
+			const folded = new Set(this.collapsedRows());
+
+			const boxAt = (index: number) => {
+				const position = drawn.indexOf(index);
+				const row = position === -1 ? null : rows[position];
+
+				return row ? row.getBoundingClientRect() : null;
+			};
+
+			// A folded run is not drawn, so its edge is the one it left behind: the top of the row
+			// that follows it, or the bottom of the one before when it was last.
+			const boundaryOf = (group: HubOutlineGroup): number => {
+				const after = drawn.find((index) => index > group.end);
+				const box = after !== undefined ? boxAt(after) : null;
+
+				if (box) {
+					return Math.round(box.top - frame.top);
+				}
+
+				const before = [...drawn].reverse().find((index) => index < group.start);
+				const last = before !== undefined ? boxAt(before) : null;
+
+				return last ? Math.round(last.bottom - frame.top) : 0;
+			};
+
+			this.rowGroupToggles.set(
+				groups
+					.map((group) => {
+						const open = !folded.has(group.id);
+
+						if (open) {
+							const box = boxAt(group.end);
+
+							return box === null
+								? null
+								: { id: group.id, toggle: Math.round(box.top - frame.top + box.height / 2), open };
+						}
+
+						return { id: group.id, toggle: boundaryOf(group), open };
+					})
+					.filter((one): one is { id: string; toggle: number; open: boolean } => one !== null)
+			);
+		}
+	});
+
+	/** Folds a row group away, or brings it back when it was folded. */
+	protected toggleRowGroup(id: string): void {
+		this.animateFold(() =>
+			this.collapsedRows.update((collapsed) =>
+				collapsed.includes(id) ? collapsed.filter((one) => one !== id) : [...collapsed, id]
+			)
+		);
+	}
 
 	/**
 	 * Puts the list of suggestions back on its cell once the frame has shifted for a formula.
@@ -1370,8 +1762,56 @@ export class HubSpreadsheetComponent<TRow> {
 			cell,
 			row: this.rows()[row],
 			column: this.columns()[col],
-			active: this.isActive(row, col)
+			active: this.isActive(row, col),
+			open: () => this.openCell(row, col)
 		};
+	}
+
+	/** Whether a row is the one open. */
+	protected isExpanded(row: number): boolean {
+		return this.expandedRow() !== null && this.expandedRow() === this.keys()[row];
+	}
+
+	/** The context a row's expansion template is rendered with. */
+	protected expansionContext(row: number): HubSpreadsheetExpansionContext<TRow> {
+		return {
+			$implicit: this.rows()[row],
+			row: this.rows()[row],
+			index: row,
+			key: this.keys()[row],
+			close: () => this.closeExpansion()
+		};
+	}
+
+	/** Opens a row, or closes it when it was already the open one. */
+	protected toggleExpansion(row: number): void {
+		this.expandedRow.set(this.isExpanded(row) ? null : this.keys()[row]);
+	}
+
+	/** Closes whatever row is open. */
+	protected closeExpansion(): void {
+		this.expandedRow.set(null);
+	}
+
+	/**
+	 * Whether this column's cells open onto something rather than being typed into.
+	 *
+	 * A cell template says so with `hubSpreadsheetCellAction`, and only the template does: the
+	 * sheet draws nothing itself, but it has to know, because it is what keeps `Enter` for the
+	 * cell instead of opening an editor the cell has not got.
+	 */
+	protected cellOpens(col: number): boolean {
+		return !!this.cellTemplateFor(col)?.action();
+	}
+
+	/** Reports that the reader asked to open what a cell points at. */
+	protected openCell(row: number, col: number): void {
+		this.opened.emit({
+			coords: { row, col },
+			row: this.rows()[row],
+			column: this.columns()[col],
+			cell: this.grid()[row][col]
+		});
 	}
 
 	/** The context a custom editor template is rendered with. */
@@ -1506,6 +1946,14 @@ export class HubSpreadsheetComponent<TRow> {
 				this.moveTo(resolveGridEdge(active, intent.edge, this.bounds()), intent.extend);
 				break;
 			case 'edit':
+				// A cell that opens onto something, with no field to write in, answers Enter with
+				// that rather than with an editor it does not have. Typing a character is left
+				// alone: such a cell holds no value to write over.
+				if (!intent.seed && !this.canEdit(active.row, active.col) && this.cellOpens(active.col)) {
+					this.openCell(active.row, active.col);
+					break;
+				}
+
 				this.startEdit(intent.seed);
 				break;
 			case 'clear':

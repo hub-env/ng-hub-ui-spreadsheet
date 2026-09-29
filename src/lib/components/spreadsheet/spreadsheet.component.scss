@@ -342,6 +342,219 @@ $coord-strip: $coord-badge + $coord-gap * 2;
 	inline-size: 100%;
 }
 
+// PROTOTYPE: the toggle layer, over the host and outside the cells, measured like the coordinates.
+// It stays on the frame's leading edge while the cells travel under it.
+.hub-spreadsheet__toggles {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	pointer-events: none;
+}
+
+// One row's toggle: as tall as the row it opens, so the button inside sits at the row's middle, and
+// hanging off the frame's leading edge so it reads as something the sheet put there.
+.hub-spreadsheet__toggle {
+	position: absolute;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: 1rem;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: #{$cursor-color};
+	cursor: pointer;
+	opacity: 0.5;
+	transition: opacity 0.15s ease;
+	pointer-events: auto;
+
+	&:hover,
+	&--open {
+		opacity: 1;
+	}
+
+	// The circle the chevron sits in, tinted towards the accent the way a coordinate badge is, so it
+	// reads as the sheet's own and not as a cell.
+	&::before {
+		content: '';
+		inline-size: 0.85rem;
+		block-size: 0.85rem;
+		border: #{$border-width} solid color-mix(in srgb, #{$cursor-color} 22%, #{$bg});
+		border-radius: 50%;
+		background: color-mix(in srgb, #{$cursor-color} 9%, #{$bg});
+		box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+	}
+
+	// The chevron, two sides of a small square rather than a glyph, pointing at the row when closed
+	// and turning to point at the detail once it is open.
+	&::after {
+		content: '';
+		position: absolute;
+		inset-block-start: 50%;
+		inset-inline-start: 50%;
+		inline-size: 0.26rem;
+		block-size: 0.26rem;
+		border-inline-end: 1.5px solid currentColor;
+		border-block-end: 1.5px solid currentColor;
+		transform: translate(-58%, -42%) rotate(45deg);
+		transition: transform 0.15s ease;
+	}
+
+	&--open::after {
+		transform: translate(-58%, -42%) rotate(-135deg);
+	}
+}
+
+// The button hangs off whichever edge of the frame the sheet runs to: both are drawn, so the
+// reader reaches the row from either side without travelling across it.
+.hub-spreadsheet__toggle--start {
+	inset-inline-start: 0;
+	margin-inline-start: -0.55rem;
+}
+
+.hub-spreadsheet__toggle--end {
+	inset-inline-end: 0;
+	margin-inline-end: -0.55rem;
+}
+
+// The column groups' toggles, over the host and above the frame's top edge: one small button per
+// group, at the edge it folds from. Not the row button's shape — a column folds sideways, so its
+// control reads as a mark on the header rather than as a handle on a row.
+.hub-spreadsheet__column-toggles {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	pointer-events: none;
+}
+
+.hub-spreadsheet__column-toggle {
+	position: absolute;
+	inset-block-start: -0.55rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: 1rem;
+	block-size: 1rem;
+	margin-inline-start: -0.5rem;
+	padding: 0;
+	border: #{$border-width} solid color-mix(in srgb, #{$cursor-color} 22%, #{$bg});
+	border-radius: 50%;
+	background: color-mix(in srgb, #{$cursor-color} 9%, #{$bg});
+	color: #{$cursor-color};
+	box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+	cursor: pointer;
+	transition: background 0.15s ease;
+	pointer-events: auto;
+
+	&:hover {
+		background: color-mix(in srgb, #{$cursor-color} 18%, #{$bg});
+	}
+
+	// A plus when the group is folded away and a minus when it is out, both from two bars so no
+	// glyph is needed and the mark stays crisp at any size.
+	&::before,
+	&::after {
+		content: '';
+		position: absolute;
+		background: currentColor;
+	}
+
+	&::before {
+		inline-size: 0.5rem;
+		block-size: 1.5px;
+	}
+
+	&::after {
+		inline-size: 1.5px;
+		block-size: 0.5rem;
+	}
+
+	&--open::after {
+		display: none;
+	}
+}
+
+// What a group is folded behind: a line straight across the sheet where the run was taken out — a
+// vertical one for a run of columns, a horizontal one for a run of rows — so a fold is never silent.
+.hub-spreadsheet__fold {
+	position: absolute;
+	inset-block: 0;
+	inline-size: 2px;
+	background: #{$cursor-color};
+	opacity: 0.6;
+	pointer-events: none;
+
+	&--row {
+		inset-block: auto;
+		inset-inline: 0;
+		block-size: 2px;
+		inline-size: auto;
+	}
+}
+
+// The run a group covers while it is out. Declared at the end of the sheet with the cell in the
+// selector: the cell sets its own background earlier and at the same weight, and a bare class here
+// would lose to it.
+.hub-spreadsheet__cell.hub-spreadsheet__grouped,
+.hub-spreadsheet__header.hub-spreadsheet__grouped {
+	background-color: color-mix(in srgb, #{$cursor-color} 14%, #{$bg});
+}
+
+// The row groups' toggles, at the frame's leading edge and at the middle of the row that folds
+// what is under it. The same plus/minus as the column group carries, so the two read as one idea.
+.hub-spreadsheet__row-toggles {
+	position: absolute;
+	inset: 0;
+	z-index: 3;
+	pointer-events: none;
+}
+
+.hub-spreadsheet__row-toggle {
+	position: absolute;
+	inset-inline-start: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	inline-size: 1rem;
+	block-size: 1rem;
+	margin-inline-start: -0.5rem;
+	transform: translateY(-50%);
+	padding: 0;
+	border: #{$border-width} solid color-mix(in srgb, #{$cursor-color} 22%, #{$bg});
+	border-radius: 50%;
+	background: color-mix(in srgb, #{$cursor-color} 9%, #{$bg});
+	color: #{$cursor-color};
+	box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+	cursor: pointer;
+	transition: background 0.15s ease;
+	pointer-events: auto;
+
+	&:hover {
+		background: color-mix(in srgb, #{$cursor-color} 18%, #{$bg});
+	}
+
+	&::before,
+	&::after {
+		content: '';
+		position: absolute;
+		background: currentColor;
+	}
+
+	&::before {
+		inline-size: 0.5rem;
+		block-size: 1.5px;
+	}
+
+	&::after {
+		inline-size: 1.5px;
+		block-size: 0.5rem;
+	}
+
+	&--open::after {
+		display: none;
+	}
+}
+
 // The letter is the coordinate proper, so it carries a touch more weight than the alias; the two
 // wear the badge's own text colour, which is what the row numbers wear too. The alias keeps a wash
 // of the accent behind it, so it still reads as the name a formula calls the column by.
@@ -707,6 +920,18 @@ $coord-strip: $coord-badge + $coord-gap * 2;
 .hub-spreadsheet__secondary {
 	display: block;
 	opacity: 0.75;
+}
+
+// ── A row opened in place ──
+// The row's own content, spanning the table, set off from the cell above by a seam so it reads as
+// belonging to that row rather than as the next one. Background from the table's subtle surface, so
+// it is told apart without inventing a colour.
+.hub-spreadsheet__expansion-cell {
+	padding: #{$cell-padding-y} #{$cell-padding-x};
+	border-block-end: #{$border-width} solid #{$border-color};
+	background: #{$header-bg};
+	white-space: normal;
+	vertical-align: top;
 }
 
 // The `fx` on a cell that holds a formula: a small rounded badge on the corner, off the cell's own

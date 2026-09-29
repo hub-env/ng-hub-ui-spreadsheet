@@ -47,8 +47,8 @@ export interface HubSpreadsheetCell {
 	 * What to show instead of the value.
 	 *
 	 * For a cell whose display differs from its data — a code shown as a name, a number shown
-	 * with a unit. The clipboard still carries `value`, so a copy round-trips the data and not
-	 * the decoration.
+	 * with a unit, a range written `from – to` while the cell still holds the figure. The
+	 * clipboard still carries `value`, so a copy round-trips the data and not the decoration.
 	 */
 	readonly text?: string | null;
 	/** A second, quieter line under the value. */
@@ -96,6 +96,15 @@ export interface HubSpreadsheetColumn<TRow> {
 	/** A floor for the column's width, as a CSS length. */
 	readonly minWidth?: string;
 	/**
+	 * How deep in an outline this column sits: `1` is inside one fold, `2` inside two, and left out
+	 * or `0` means it is not folded at all.
+	 *
+	 * A run of neighbouring columns at a level is a group, and the sheet draws the toggle that
+	 * folds it away. Which groups are folded is the owner's, through the sheet's
+	 * `collapsedColumns`; the sheet only draws and reports.
+	 */
+	readonly level?: number;
+	/**
 	 * A hint shown in an empty cell of this column while the pointer rests on it.
 	 *
 	 * Only on hover, and never in place of a value: a column of hints reads as a column of
@@ -134,6 +143,27 @@ export interface HubSpreadsheetCellRef<TRow> {
 	readonly column: HubSpreadsheetColumn<TRow>;
 	/** What it showed when the event happened. */
 	readonly cell: HubSpreadsheetCell;
+}
+
+/**
+ * What an expansion template is handed when a row is opened.
+ *
+ * The row's own content, laid out where the row is rather than in a dialog over it: a dialog hides
+ * the row it is about and cannot be compared with the one above, which is the whole reason a sheet
+ * opens a row in place. The owner draws whatever the row holds behind its figures and closes it
+ * again through `close`.
+ */
+export interface HubSpreadsheetExpansionContext<TRow> {
+	/** The row that was opened. */
+	readonly $implicit: TRow;
+	/** The same row, under its own name. */
+	readonly row: TRow;
+	/** Where it sits among the rows. */
+	readonly index: number;
+	/** Its key, as `rowKey` gives it. */
+	readonly key: string;
+	/** Closes the row again. */
+	readonly close: () => void;
 }
 
 /** A value typed or pasted into a cell, already read as a number where the column is one. */

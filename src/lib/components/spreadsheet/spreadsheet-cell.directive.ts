@@ -13,6 +13,8 @@ export interface HubSpreadsheetCellContext<TRow> {
 	readonly column: HubSpreadsheetColumn<TRow>;
 	/** Whether this is the cell the reader is on. */
 	readonly active: boolean;
+	/** Reports that the reader asked to open what this cell points at. */
+	readonly open: () => void;
 }
 
 /**
@@ -58,6 +60,17 @@ export class HubSpreadsheetCellDirective<TRow = unknown> {
 	 * ```
 	 */
 	readonly rows = input<readonly TRow[]>([], { alias: 'hubSpreadsheetCellRows' });
+
+	/**
+	 * The accessible name of the way in, when the cells of this column open onto something rather
+	 * than being typed into.
+	 *
+	 * Given, the sheet keeps `Enter` for the cell instead of opening an editor the cell has not
+	 * got, and reports the press through `opened`; the template draws the way in itself — a link,
+	 * a button — and calls `open()` from its context. Left out, the cell is only read or typed
+	 * into, and `Enter` does what the sheet would have done on its own.
+	 */
+	readonly action = input('', { alias: 'hubSpreadsheetCellAction' });
 
 	readonly template = inject<TemplateRef<HubSpreadsheetCellContext<TRow>>>(TemplateRef);
 

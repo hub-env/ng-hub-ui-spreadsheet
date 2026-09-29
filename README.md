@@ -81,6 +81,8 @@ That split is deliberate. It is what lets the same component serve an invoice, a
 - **A clipboard that actually round-trips with Excel.** Both flavours written, both read, with the raw number recovered from the HTML so a figure copied in a locale that writes `1.234,56` arrives as `1234.56`.
 - **Frozen panes**, counted from the edge the way Excel freezes them.
 - **Five save states per cell**, drawn as a bar rather than a badge.
+- **Cells that open onto something**, said by their own template and reported through `opened` — with the pointer and with `Enter`. A row's own detail opens **in place**, under an `expansion` template.
+- **Foldable columns and rows**, by outline level — Excel's grouping: a run at a level folds away with one toggle, and which groups are folded is yours.
 - **Structured output by alias**: `{ price: 12, units: 3 }`, not a grid of coordinates.
 - **Real grid semantics** — `role="grid"`, row and column indices, `aria-selected`, a roving tab stop — so a screen reader can navigate it.
 - **Input-method safe.** The `Enter` that confirms a Chinese, Japanese or Korean character does not commit the cell.
@@ -186,6 +188,43 @@ spreadsheetRecords(this.lines(), this.columns);
 // [{ product: 'M6 bolt', units: 1200, price: 0.12, total: 144 }, …]
 ```
 
+A cell can also **open onto something** — a detail elsewhere, a panel, another page. The cell is
+drawn by a template of yours, `hubSpreadsheetCell`, so the way in is drawn there too; the one thing
+the template has to say out loud is that the cell opens, with `hubSpreadsheetCellAction`, which is
+what keeps `Enter` for the cell:
+
+```html
+<hub-spreadsheet [rows]="products()" [columns]="columns" [rowKey]="rowKey" (opened)="onOpened($event)">
+	<ng-template hubSpreadsheetCell="name" hubSpreadsheetCellAction="Open the product" let-value let-open="open">
+		<a (click)="open()">{{ value }}</a>
+	</ng-template>
+</hub-spreadsheet>
+```
+
+`open()` is handed to the template and reports the intent through `opened`; the sheet opens nothing
+itself. An editable cell keeps `Enter` for editing, and the clipboard still carries the value rather
+than the drawing.
+
+For a cell that opens the row's own detail, put the detail in an `expansion` template and let `expandedRow` name the open row:
+
+```html
+<hub-spreadsheet
+	[rows]="rows()"
+	[columns]="columns"
+	[rowKey]="rowKey"
+	[expansion]="rowDetail"
+	[(expandedRow)]="openRow"
+	(opened)="onOpened($event)"
+/>
+
+<ng-template #rowDetail let-row let-close="close">
+	<!-- what the row holds behind its figures, drawn under the row itself -->
+	<hub-button (click)="close()">Close</hub-button>
+</ng-template>
+```
+
+`expandedRow` is two-way and names the row by its key; the template is handed the row, its index, its key and a way to close it. One row is open at a time.
+
 ## ⌨️ Keyboard
 
 | Key                           | What it does                                         |
@@ -289,6 +328,8 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `readonly`           | `boolean`                                 | `false`          | Turns off every editor, whatever the cells say.                                   |
 | `formulas`           | `boolean`                                 | `false`          | Reads a cell that starts with `=` as a formula. See below.                        |
 | `editOn`             | `'click' \| 'double-click'`               | `'double-click'` | What opens the editor with the pointer. Typing opens it either way.               |
+| `expansion`          | `TemplateRef<HubSpreadsheetExpansionContext<TRow>> \| null` | `null` | A template drawn under a row that is open. See below.       |
+| `expandedRow`        | `string \| null`                          | `null`           | Two-way. Which row is open, by its key.                                           |
 | `direction`          | `'auto' \| 'ltr' \| 'rtl'`                | `'auto'`         | Which way the sheet runs. `auto` follows the page; the other two force it.         |
 | `frozenColumns`      | `number`                                  | `0`              | How many columns stay pinned to the leading edge.                                 |
 | `frozenRows`         | `number`                                  | `0`              | How many rows stay pinned below the header.                                       |
@@ -316,6 +357,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `pasted`                | `HubSpreadsheetPaste<TRow>`     | A block was pasted.                                                                      |
 | `filled`                | `HubSpreadsheetPaste<TRow>`     | The fill handle was dragged and released.                                                |
 | `cleared`               | `HubSpreadsheetCellRef<TRow>[]` | `Delete` was pressed over a selection.                                                   |
+| `opened`                | `HubSpreadsheetCellRef<TRow>`   | A cell's template said the reader asked to open it — with the pointer, or with `Enter` where there is no field to edit. |
 | `selectionChange`       | `HubGridRange \| null`          | The selected rectangle changed.                                                          |
 | `selectionRangesChange` | `readonly HubGridRange[]`       | Every rectangle of the selection, whenever it changes. One entry unless blocks were held with `Ctrl`. |
 | `insertRequested`       | `HubSpreadsheetInsertRequest`   | The reader asked to add rows or columns.                                                 |

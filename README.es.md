@@ -81,10 +81,12 @@ Esa separación es deliberada. Es lo que permite que el mismo componente sirva p
 - **Un portapapeles que de verdad va y viene con Excel.** Escribe los dos formatos, lee los dos, y recupera el número crudo del HTML, así que una cifra copiada donde se escribe `1.234,56` llega como `1234.56`.
 - **Paneles congelados**, contados desde el borde como los congela Excel.
 - **Cinco estados de guardado por celda**, dibujados como una barra y no como una insignia.
+- **Celdas que abren algo**, dichas por su propia plantilla e informadas por `opened` — con el puntero y con `Intro`. El detalle propio de una fila se abre **en su sitio**, bajo una plantilla `expansion`.
+- **Columnas y filas plegables**, por nivel de esquema — el agrupado de Excel: una tirada en un nivel se pliega con un solo botón, y qué grupos están plegados es tuyo.
 - **Salida estructurada por alias**: `{ price: 12, units: 3 }`, no una rejilla de coordenadas.
 - **Semántica de rejilla real** —`role="grid"`, índices de fila y columna, `aria-selected`, una parada de tabulación que viaja— para que un lector de pantalla pueda recorrerla.
 - **A prueba de métodos de escritura.** El `Intro` que confirma un carácter chino, japonés o coreano no confirma la celda.
-- **69 variables CSS** que heredan de `--hub-table-*` antes de caer en el sistema de diseño.
+- **72 variables CSS** que heredan de `--hub-table-*` antes de caer en el sistema de diseño.
 - **Salida a un `.xlsx` de verdad y vuelta**, con los números como números y las fechas como fechas — y a CSV, con el separador que espera el idioma de quien lo abre. El zip y el XML se escriben aquí, así que exportar no trae ninguna dependencia.
 - **Sin `@angular/cdk`.** Las primitivas de rejilla están en `ng-hub-ui-utils`.
 
@@ -185,6 +187,43 @@ import { spreadsheetRecords } from 'ng-hub-ui-spreadsheet';
 spreadsheetRecords(this.lines(), this.columns);
 // [{ product: 'M6 bolt', units: 1200, price: 0.12, total: 144 }, …]
 ```
+
+Una celda puede además **abrir algo** —un detalle en otro sitio, un panel, otra página—. La celda la
+dibuja una plantilla tuya, `hubSpreadsheetCell`, así que la entrada se dibuja ahí también; lo único
+que la plantilla tiene que decir en voz alta es que la celda abre, con `hubSpreadsheetCellAction`,
+que es lo que le guarda el `Intro` a la celda:
+
+```html
+<hub-spreadsheet [rows]="products()" [columns]="columns" [rowKey]="rowKey" (opened)="onOpened($event)">
+	<ng-template hubSpreadsheetCell="name" hubSpreadsheetCellAction="Abrir el producto" let-value let-open="open">
+		<a (click)="open()">{{ value }}</a>
+	</ng-template>
+</hub-spreadsheet>
+```
+
+`open()` se le entrega a la plantilla y avisa de la intención por `opened`; la hoja no abre nada por
+su cuenta. Una celda editable conserva `Intro` para editar, y el portapapeles sigue llevando el
+valor, no el dibujo.
+
+Para una celda que abre el detalle propio de la fila, pon el detalle en una plantilla `expansion` y deja que `expandedRow` nombre la fila abierta:
+
+```html
+<hub-spreadsheet
+	[rows]="rows()"
+	[columns]="columns"
+	[rowKey]="rowKey"
+	[expansion]="rowDetail"
+	[(expandedRow)]="openRow"
+	(opened)="onOpened($event)"
+/>
+
+<ng-template #rowDetail let-row let-close="close">
+	<!-- lo que la fila guarda detrás de sus cifras, dibujado bajo la fila misma -->
+	<hub-button (click)="close()">Cerrar</hub-button>
+</ng-template>
+```
+
+`expandedRow` es bidireccional y nombra la fila por su clave; la plantilla recibe la fila, su índice, su clave y una forma de cerrarla. Solo hay una fila abierta a la vez.
 
 ## ⌨️ Teclado
 
@@ -289,6 +328,8 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `readonly`           | `boolean`                                 | `false`          | Desactiva todos los editores, digan lo que digan las celdas.                  |
 | `formulas`           | `boolean`                                 | `false`          | Lee como fórmula la celda que empieza por `=`. Ver abajo.                     |
 | `editOn`             | `'click' \| 'double-click'`               | `'double-click'` | Qué abre el editor con el puntero. Escribir lo abre en ambos casos.           |
+| `expansion`          | `TemplateRef<HubSpreadsheetExpansionContext<TRow>> \| null` | `null` | Una plantilla dibujada bajo la fila que está abierta. Ver abajo.  |
+| `expandedRow`        | `string \| null`                          | `null`           | Bidireccional. Qué fila está abierta, por su clave.                           |
 | `direction`          | `'auto' \| 'ltr' \| 'rtl'`                | `'auto'`         | Hacia dónde corre la hoja. `auto` sigue a la página; las otras dos la fuerzan. |
 | `frozenColumns`      | `number`                                  | `0`              | Cuántas columnas quedan fijadas al margen inicial.                            |
 | `frozenRows`         | `number`                                  | `0`              | Cuántas filas quedan fijadas bajo la cabecera.                                |
@@ -316,6 +357,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `pasted`                | `HubSpreadsheetPaste<TRow>`     | Se pega un bloque.                                                                         |
 | `filled`                | `HubSpreadsheetPaste<TRow>`     | Se suelta el tirador de relleno.                                                           |
 | `cleared`               | `HubSpreadsheetCellRef<TRow>[]` | Se pulsa `Supr` sobre una selección.                                                       |
+| `opened`                | `HubSpreadsheetCellRef<TRow>`   | La plantilla de una celda avisó de que el lector pidió abrirla —con el puntero, o con `Intro` donde no hay campo que editar—. |
 | `selectionChange`       | `HubGridRange \| null`          | Cambia el rectángulo seleccionado.                                                         |
 | `selectionRangesChange` | `readonly HubGridRange[]`       | Cambia la selección entera. Un solo elemento salvo que se hayan cogido bloques con `Ctrl`. |
 | `insertRequested`       | `HubSpreadsheetInsertRequest`   | El lector pide añadir filas o columnas.                                                    |
