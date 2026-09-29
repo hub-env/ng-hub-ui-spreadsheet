@@ -1794,14 +1794,17 @@ export class HubSpreadsheetComponent<TRow> {
 	}
 
 	/**
-	 * Whether this column's cells open onto something rather than being typed into.
+	 * Whether a cell opens onto something rather than being typed into.
 	 *
-	 * A cell template says so with `hubSpreadsheetCellAction`, and only the template does: the
-	 * sheet draws nothing itself, but it has to know, because it is what keeps `Enter` for the
-	 * cell instead of opening an editor the cell has not got.
+	 * A cell template says so — with a name for the whole column, or a function that answers per
+	 * row — and only the template does: the sheet draws nothing itself, but it has to know,
+	 * because it is what keeps `Enter` for the cell instead of opening an editor the cell has not
+	 * got.
 	 */
-	protected cellOpens(col: number): boolean {
-		return !!this.cellTemplateFor(col)?.action();
+	protected cellOpens(row: number, col: number): boolean {
+		const action = this.cellTemplateFor(col)?.action();
+
+		return typeof action === 'function' ? action(this.rows()[row]) : !!action;
 	}
 
 	/** Reports that the reader asked to open what a cell points at. */
@@ -1949,7 +1952,7 @@ export class HubSpreadsheetComponent<TRow> {
 				// A cell that opens onto something, with no field to write in, answers Enter with
 				// that rather than with an editor it does not have. Typing a character is left
 				// alone: such a cell holds no value to write over.
-				if (!intent.seed && !this.canEdit(active.row, active.col) && this.cellOpens(active.col)) {
+				if (!intent.seed && !this.canEdit(active.row, active.col) && this.cellOpens(active.row, active.col)) {
 					this.openCell(active.row, active.col);
 					break;
 				}

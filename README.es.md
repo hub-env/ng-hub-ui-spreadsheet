@@ -205,6 +205,27 @@ que es lo que le guarda el `Intro` a la celda:
 su cuenta. Una celda editable conserva `Intro` para editar, y el portapapeles sigue llevando el
 valor, no el dibujo.
 
+`hubSpreadsheetCellAction` también puede ser **una función de la fila**, para una columna donde solo
+abren algunas celdas — un producto cuya fila plegada abre sus variantes mientras la suya solo se lee:
+
+```html
+<ng-template
+	hubSpreadsheetCell="name"
+	[hubSpreadsheetCellRows]="products()"
+	[hubSpreadsheetCellAction]="opensItsVariants"
+	let-row="row"
+	let-open="open"
+>
+	@if (opensItsVariants(row)) {
+		<a (click)="open()">{{ row.name }}</a>
+	} @else {
+		{{ row.name }}
+	}
+</ng-template>
+```
+
+Entonces `Intro` abre las filas para las que la función responde, y deja las demás a la hoja.
+
 Para una celda que abre el detalle propio de la fila, pon el detalle en una plantilla `expansion` y deja que `expandedRow` nombre la fila abierta:
 
 ```html

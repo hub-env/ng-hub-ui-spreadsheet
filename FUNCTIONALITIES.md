@@ -11,6 +11,7 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 | **Cells**         | Value and display text told apart (`value` / `text`)                    |     ✅      |       ❌        |
 |                   | Secondary line under the value (`secondary`)                            |     ✅      |       ❌        |
 |                   | A cell that opens onto something, said by its template (`opened`)      |     ✅      |       ❌        |
+|                   | Which cells of a column open: all, or answered per row                  |     ✅      |       ✅        |
 |                   | Per-cell editability (`editable`)                                       |     ✅      |       ❌        |
 |                   | Muted rendering (`muted`)                                               |     ✅      |       ❌        |
 |                   | Tooltip (`title`)                                                       |     ✅      |       ❌        |

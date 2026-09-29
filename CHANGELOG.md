@@ -1,5 +1,16 @@
 # Changelog
 
+## [22.5.0] - 2026-09-29
+
+### Changed
+
+- **`hubSpreadsheetCellAction` answers per row.** It was a name for the whole column, so the cells
+  of a column all opened or none did. It now also takes a **function of the row**, for a column
+  where only some cells open — a product whose folded row opens its variants while its own row is
+  only read, a figure that opens the tiers behind it while the cells beside it are edited. `Enter`
+  opens the rows the function answers for and leaves every other cell the sheet's. A string still
+  means the whole column, so nothing that already worked changes.
+
 ## [22.4.0] - 2026-09-28
 
 ### Added

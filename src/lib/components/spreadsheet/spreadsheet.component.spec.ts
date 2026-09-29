@@ -2587,6 +2587,62 @@ describe('HubSpreadsheetComponent', () => {
 			expect(drawn.nativeElement.querySelector('[data-cell="0-1"] .hub-spreadsheet__editor')).not.toBeNull();
 		});
 
+		it('lets the template answer per row which cells open', async () => {
+			@Component({
+				standalone: true,
+				imports: [HubSpreadsheetComponent, HubSpreadsheetCellDirective],
+				template: `
+					<hub-spreadsheet [rows]="rows()" [columns]="columns" [rowKey]="rowKey" (opened)="opened.push($event)">
+						<ng-template
+							hubSpreadsheetCell="product"
+							[hubSpreadsheetCellRows]="rows()"
+							[hubSpreadsheetCellAction]="answers"
+							let-row="row"
+							let-open="open"
+						>
+							<a class="way-in" (click)="open()">{{ row.product }}</a>
+						</ng-template>
+					</hub-spreadsheet>
+				`
+			})
+			class PerRowHost {
+				readonly rows = signal<Line[]>(lines());
+				readonly rowKey = (row: Line) => row.id;
+				readonly opened: HubSpreadsheetCellRef<Line>[] = [];
+				/** Only the second row opens; the first keeps `Enter` to itself. */
+				readonly answers = (row: Line) => row.id === 'b';
+				readonly columns: HubSpreadsheetColumn<Line>[] = [
+					{ key: 'product', header: 'Producto', cell: (row) => ({ value: row.product }) }
+				];
+			}
+
+			await TestBed.resetTestingModule()
+				.configureTestingModule({ imports: [PerRowHost], providers: [provideHubTranslation()] })
+				.compileComponents();
+
+			const drawn = TestBed.createComponent(PerRowHost);
+			drawn.detectChanges();
+
+			const enterOn = (row: number, col: number) => {
+				const cell: HTMLElement = drawn.nativeElement.querySelector(`[data-cell="${row}-${col}"]`);
+
+				cell.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+				cell.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+				drawn.nativeElement
+					.querySelector('.hub-spreadsheet__table')
+					?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+				drawn.detectChanges();
+			};
+
+			// The row the template does not answer for keeps Enter to itself: nothing opened.
+			enterOn(0, 0);
+			expect(drawn.componentInstance.opened).toHaveLength(0);
+
+			// The row it answers for opens.
+			enterOn(1, 0);
+			expect(drawn.componentInstance.opened.at(-1)).toMatchObject({ coords: { row: 1, col: 0 } });
+		});
+
 		it('draws the open row under its own row, and only that one', () => {
 			host.expandedRow.set('b');
 			fixture.detectChanges();

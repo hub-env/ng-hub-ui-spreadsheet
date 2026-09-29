@@ -62,15 +62,19 @@ export class HubSpreadsheetCellDirective<TRow = unknown> {
 	readonly rows = input<readonly TRow[]>([], { alias: 'hubSpreadsheetCellRows' });
 
 	/**
-	 * The accessible name of the way in, when the cells of this column open onto something rather
-	 * than being typed into.
+	 * Whether the cells of this column open onto something rather than being typed into, and the
+	 * accessible name of the way in.
 	 *
-	 * Given, the sheet keeps `Enter` for the cell instead of opening an editor the cell has not
-	 * got, and reports the press through `opened`; the template draws the way in itself — a link,
-	 * a button — and calls `open()` from its context. Left out, the cell is only read or typed
-	 * into, and `Enter` does what the sheet would have done on its own.
+	 * A string means the whole column opens. A function answers per row, for a column where only
+	 * some cells do — a product whose folded row opens its variants while its own row is typed
+	 * into, a figure that opens the tiers behind it while the cells beside it are edited.
+	 *
+	 * Either way the sheet keeps `Enter` for a cell that opens instead of opening an editor the
+	 * cell has not got, and reports the press through `opened`; the template draws the way in
+	 * itself — a link, a button — and calls `open()` from its context. Left out, the cell is only
+	 * read or typed into, and `Enter` does what the sheet would have done on its own.
 	 */
-	readonly action = input('', { alias: 'hubSpreadsheetCellAction' });
+	readonly action = input<string | ((row: TRow) => boolean)>('', { alias: 'hubSpreadsheetCellAction' });
 
 	readonly template = inject<TemplateRef<HubSpreadsheetCellContext<TRow>>>(TemplateRef);
 

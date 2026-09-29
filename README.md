@@ -205,6 +205,27 @@ what keeps `Enter` for the cell:
 itself. An editable cell keeps `Enter` for editing, and the clipboard still carries the value rather
 than the drawing.
 
+`hubSpreadsheetCellAction` may also be **a function of the row**, for a column where only some cells
+open — a product whose folded row opens its variants while its own row is only read:
+
+```html
+<ng-template
+	hubSpreadsheetCell="name"
+	[hubSpreadsheetCellRows]="products()"
+	[hubSpreadsheetCellAction]="opensItsVariants"
+	let-row="row"
+	let-open="open"
+>
+	@if (opensItsVariants(row)) {
+		<a (click)="open()">{{ row.name }}</a>
+	} @else {
+		{{ row.name }}
+	}
+</ng-template>
+```
+
+Then `Enter` opens the rows the function answers for, and leaves every other cell the sheet's.
+
 For a cell that opens the row's own detail, put the detail in an `expansion` template and let `expandedRow` name the open row:
 
 ```html
