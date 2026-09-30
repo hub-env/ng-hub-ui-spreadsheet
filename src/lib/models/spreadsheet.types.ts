@@ -59,6 +59,14 @@ export interface HubSpreadsheetCell {
 	readonly muted?: boolean;
 	/** Said when the pointer rests on the cell. */
 	readonly title?: string | null;
+	/**
+	 * A hint shown in this cell while it is empty, on hover.
+	 *
+	 * Where the column's own `placeholder` says the same thing in every row, this one can say
+	 * what a particular empty cell stands for — the figure it would inherit from elsewhere, a
+	 * default it falls back on. Left out, the column's placeholder is used.
+	 */
+	readonly placeholder?: string | null;
 }
 
 /**

@@ -179,6 +179,14 @@ A column says what it is called and how to get a cell out of a row:
 
 **Why two names.** Make the visible name the key and renaming a column means rewriting every reference to it — the mistake Excel made, and the reason a renamed column there breaks formulas across the workbook. Keep them apart and a rename is a rename.
 
+A column can also **hint at an empty cell**: `placeholder` is shown while the pointer rests on a cell that holds nothing, never in place of a value. A **cell can carry one of its own**, for the row where the column's hint would not tell the truth:
+
+```typescript
+cell: (row) => ({ value: row.due, editable: true, placeholder: row.id === 'c' ? 'after the cabling' : null })
+```
+
+Left out or `null`, the column's placeholder is used.
+
 Read the sheet back as plain data keyed by alias:
 
 ```typescript

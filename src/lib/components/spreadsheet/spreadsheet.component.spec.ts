@@ -1063,6 +1063,26 @@ describe('HubSpreadsheetComponent', () => {
 			expect(cell(1, 3).querySelector('.hub-spreadsheet__placeholder')).toBeNull();
 		});
 
+		it('lets a cell carry a hint of its own over the column one, and fall back to it', () => {
+			host.columns.update((columns) => [
+				...columns,
+				{
+					key: 'note',
+					header: 'Nota',
+					placeholder: 'yyyy-mm-dd',
+					cell: (row: Line) => ({
+						value: null,
+						editable: true,
+						placeholder: row.id === 'a' ? 'after the cabling' : null
+					})
+				}
+			]);
+			fixture.detectChanges();
+
+			expect(cell(0, 3).querySelector('.hub-spreadsheet__placeholder')?.textContent?.trim()).toBe('after the cabling');
+			expect(cell(1, 3).querySelector('.hub-spreadsheet__placeholder')?.textContent?.trim()).toBe('yyyy-mm-dd');
+		});
+
 		it('draws a boolean column as a checkbox and turns it over in one gesture', () => {
 			withStatus();
 

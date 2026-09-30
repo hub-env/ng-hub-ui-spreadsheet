@@ -179,6 +179,14 @@ Una columna dice cómo se llama y cómo sacar una celda de una fila:
 
 **Por qué dos nombres.** Si el nombre visible es la clave, renombrar una columna obliga a reescribir todas las referencias a ella: el error que cometió Excel, y la razón de que allí una columna renombrada rompa fórmulas por todo el libro. Manteniéndolos separados, renombrar es solo renombrar.
 
+Una columna también puede **insinuar qué falta en una celda vacía**: `placeholder` se muestra mientras el puntero descansa sobre una celda que no tiene nada, nunca en lugar de un valor. Y **cada celda puede llevar el suyo**, para la fila en la que la pista de la columna no diría la verdad:
+
+```typescript
+cell: (row) => ({ value: row.due, editable: true, placeholder: row.id === 'c' ? 'tras el cableado' : null })
+```
+
+Si se omite o es `null`, se usa el de la columna.
+
 Leer la hoja como datos planos con los alias por clave:
 
 ```typescript

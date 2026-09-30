@@ -1,6 +1,6 @@
 {
 	"name": "ng-hub-ui-spreadsheet",
-	"version": "22.5.0",
+	"version": "22.6.0",
 	"license": "MIT",
 	"description": "Excel-like editable spreadsheet for Angular: in-cell editing, full keyboard navigation, rectangular range selection and a clipboard that round-trips with Excel. Accessible, themable through CSS variables and free of paid tiers. Part of the ng-hub-ui family.",
 	"author": "Carlos Morcillo Fernández <carlos.morcillo@me.com> (https://www.carlosmorcillo.com)",

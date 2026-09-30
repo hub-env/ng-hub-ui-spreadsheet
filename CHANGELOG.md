@@ -1,5 +1,14 @@
 # Changelog
 
+## [22.6.0] - 2026-09-30
+
+### Added
+
+- **A cell can say what it is empty *of*.** `HubSpreadsheetCell` gains `placeholder`: a hint
+  shown in that cell while it is empty, on hover — the figure it would inherit from elsewhere, a
+  default it falls back on. Where the column's own `placeholder` says the same thing in every row,
+  this one says what a particular empty cell stands for; left out, the column's is used.
+
 ## [22.5.0] - 2026-09-29
 
 ### Changed

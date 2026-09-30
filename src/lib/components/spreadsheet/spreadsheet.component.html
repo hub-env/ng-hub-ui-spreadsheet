@@ -254,9 +254,9 @@
 									} @else {
 										<span class="hub-spreadsheet__value">{{ displayOf(cell, column) }}</span>
 
-										@if (column.placeholder && !displayOf(cell, column)) {
+										@if ((cell.placeholder ?? column.placeholder) && !displayOf(cell, column)) {
 											<span class="hub-spreadsheet__placeholder" aria-hidden="true">
-												{{ column.placeholder }}
+												{{ cell.placeholder ?? column.placeholder }}
 											</span>
 										}
 

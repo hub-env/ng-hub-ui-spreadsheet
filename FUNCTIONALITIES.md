@@ -29,6 +29,7 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 |                   | A retired option stays readable and choosable on rows holding it        |     ✅      |       ✅        |
 |                   | A checkbox that turns over in one click                                 |     ✅      |       ✅        |
 |                   | A hint in an empty cell, on hover (`placeholder`)                       |     ✅      |       ✅        |
+|                   | A hint a cell carries of its own, over the column's                     |     ✅      |       ✅        |
 | **Editing**       | Type to replace the cell                                                |     ✅      |       ❌        |
 |                   | `F2` / `Enter` open the editor keeping the value                        |     ✅      |       ❌        |
 |                   | Two clicks to edit, or one (`editOn`)                                   |     ✅      |       ✅        |
