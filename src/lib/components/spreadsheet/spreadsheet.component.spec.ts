@@ -369,10 +369,12 @@ describe('HubSpreadsheetComponent', () => {
 			expect(css).toMatch(/--hub-spreadsheet-cell-edge-inline:\s*0px/);
 			expect(css).not.toMatch(/--hub-spreadsheet-cell-edge-inline:\s*0\s*[;}]/);
 
-			const start = css.indexOf('.hub-spreadsheet__cell--editing');
-			const rule = css.slice(start, css.indexOf('}', start));
+			// Every rule that names the editing cell; the compound cursor rule is one of them, so the
+			// one that sets the height is picked out by what it declares.
+			const rules = Array.from(css.matchAll(/\.hub-spreadsheet__cell--editing[^{}]*\{[^}]*\}/g)).map((match) => match[0]);
+			const rule = rules.find((candidate) => /[^-]block-size:/.test(candidate)) ?? '';
 
-			expect(start).toBeGreaterThan(-1);
+			expect(rules.length).toBeGreaterThan(0);
 			expect(rule).toMatch(/[^-]block-size:/);
 			expect(rule).not.toContain('min-block-size');
 		});
@@ -2198,7 +2200,11 @@ describe('HubSpreadsheetComponent', () => {
 			host.errors.set({ 'a\tunits': 'Must be at least 1' });
 			fixture.detectChanges();
 
-			expect(cell(0, 1).getAttribute('title')).toBe('Must be at least 1');
+			expect(cell(0, 1).hasAttribute('title')).toBe(false);
+
+			cell(0, 1).dispatchEvent(new MouseEvent('mouseenter'));
+
+			expect(document.body.querySelector('.hub-tooltip')?.textContent).toBe('Must be at least 1');
 		});
 
 		it('draws the outline inside the cell, so a neighbour never shifts', () => {
@@ -2737,6 +2743,91 @@ describe('HubSpreadsheetComponent', () => {
 			drawn.detectChanges();
 
 			expect(rowCount()).toBe(1);
+		});
+	});
+
+	describe('cell error tooltip', () => {
+		it('shows the host message in a body tooltip instead of a native title', () => {
+			host.errors.set({ 'a\tproduct': 'Product is required' });
+			fixture.detectChanges();
+
+			expect(cell(0, 0).hasAttribute('title')).toBe(false);
+
+			cell(0, 0).dispatchEvent(new MouseEvent('mouseenter'));
+
+			expect(document.body.querySelector('.hub-tooltip')?.textContent).toBe('Product is required');
+		});
+
+		it('shows no tooltip on a cell without error', () => {
+			host.errors.set({ 'a\tproduct': 'Product is required' });
+			fixture.detectChanges();
+			cell(1, 0).dispatchEvent(new MouseEvent('mouseenter'));
+
+			expect(document.body.querySelector('.hub-tooltip')).toBeNull();
+		});
+
+		it('keeps the cell title as a native title when there is no error', () => {
+			host.columns.update((columns) => [
+				{ ...columns[0], cell: (row) => ({ value: row.product, editable: true, title: 'Hint' }) },
+				...columns.slice(1)
+			]);
+			fixture.detectChanges();
+
+			expect(cell(0, 0).getAttribute('title')).toBe('Hint');
+		});
+	});
+
+	describe('emptying a single cell', () => {
+		function withStatus(): void {
+			host.columns.update((columns) => [
+				...columns,
+				{
+					key: 'status',
+					header: 'Estado',
+					kind: 'select' as const,
+					options: [{ value: 'done', label: 'Done' }],
+					cell: () => ({ value: 'done', editable: true })
+				},
+				{ key: 'done', header: 'Listo', kind: 'boolean' as const, cell: () => ({ value: 1, editable: true }) }
+			]);
+			fixture.detectChanges();
+		}
+
+		it.each(['Backspace', 'Delete'])('opens an empty editor on %s over a text cell', (key) => {
+			click(0, 0);
+			press(key);
+
+			expect(editor()).not.toBeNull();
+			expect(editor()!.value).toBe('');
+			expect(host.cleared).toHaveLength(0);
+		});
+
+		it('opens an empty editor on Backspace over a number cell', () => {
+			click(0, 1);
+			press('Backspace');
+
+			expect(editor()!.value).toBe('');
+			expect(host.cleared).toHaveLength(0);
+		});
+
+		it('still reports a block through cleared on Backspace', () => {
+			click(0, 0);
+			press('ArrowRight', { shiftKey: true });
+			press('Backspace');
+
+			expect(editor()).toBeNull();
+			expect(host.cleared).toHaveLength(1);
+		});
+
+		it('does not open an editor on a list or a yes/no cell, and reports the clear', () => {
+			withStatus();
+			click(0, 3);
+			press('Backspace');
+			click(0, 4);
+			press('Backspace');
+
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__editor')).toBeNull();
+			expect(host.cleared).toHaveLength(2);
 		});
 	});
 });

@@ -651,8 +651,12 @@ $coord-strip: $coord-badge + $coord-gap * 2;
 		background-image: linear-gradient(#{$fill-preview-bg}, #{$fill-preview-bg});
 	}
 
+	// Only while the sheet holds the focus. A selection still painted after the reader has left
+	// says that typing would land in it, and it no longer does.
 	&--selected {
-		background-image: linear-gradient(#{$selection-bg}, #{$selection-bg});
+		:host(:focus-within) & {
+			background-image: linear-gradient(#{$selection-bg}, #{$selection-bg});
+		}
 	}
 
 	// The cells a reference being pointed at covers. Tinted like a selection but ringed as well,
@@ -680,6 +684,10 @@ $coord-strip: $coord-badge + $coord-gap * 2;
 		// its neighbours by the width of a line. Colour alone does not carry the message either:
 		// the outline is what a reader who cannot tell red from grey has to go on.
 		box-shadow: inset 0 0 0 #{$invalid-border-width} #{$invalid-color};
+		// The message's tooltip wears the same colour. It sits on `<body>`, so it is themed from
+		// here: the tooltip copies these from the cell when it opens.
+		--hub-tooltip-bg: #{$invalid-color};
+		--hub-tooltip-color: var(--hub-sys-color-danger-on, #fff);
 	}
 
 	// The cursor is an outline drawn inwards, not a border and not an overlay.
@@ -689,8 +697,14 @@ $coord-strip: $coord-badge + $coord-gap * 2;
 	// clipped at the edges of the scroll area, so it came out broken on exactly the cells where
 	// it matters most. An inward outline takes part in neither layout nor overflow.
 	&--active {
-		outline: #{$cursor-width} solid #{$cursor-color};
-		outline-offset: calc(#{$cursor-width} * -1);
+		// Hidden with the selection once the focus leaves, except on a cell being edited: an
+		// editor's own popup is on `<body>`, and the cell it belongs to has to stay marked.
+		:host(:focus-within) &,
+		&.hub-spreadsheet__cell--editing {
+			outline: #{$cursor-width} solid #{$cursor-color};
+			outline-offset: calc(#{$cursor-width} * -1);
+		}
+
 		// Above its neighbours, so the two edges it shares with them are its own.
 		z-index: 2;
 	}
@@ -827,7 +841,7 @@ $coord-strip: $coord-badge + $coord-gap * 2;
 	opacity: 0;
 
 	.hub-spreadsheet__cell:hover > &,
-	.hub-spreadsheet__cell--active > & {
+	:host(:focus-within) .hub-spreadsheet__cell--active > & {
 		opacity: 1;
 	}
 

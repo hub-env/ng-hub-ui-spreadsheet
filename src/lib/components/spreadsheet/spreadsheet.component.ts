@@ -46,7 +46,7 @@ import {
 	resolveGridIntent,
 	spanAt
 } from 'ng-hub-ui-utils';
-import { HUB_TRANSLATION_PREFIX, TranslatePipe } from 'ng-hub-ui-utils';
+import { HUB_FIELD_FEEDBACK, HUB_TRANSLATION_PREFIX, HubTooltipDirective, TranslatePipe } from 'ng-hub-ui-utils';
 import { displayValue, isTruthy, parseForColumn } from '../../columns/cell-values';
 import { HubSpreadsheetEditorContext, HubSpreadsheetEditorDirective } from './spreadsheet-editor.directive';
 import { HubSpreadsheetCellContext, HubSpreadsheetCellDirective } from './spreadsheet-cell.directive';
@@ -114,8 +114,13 @@ const FIRST_PASS_ROW_HEIGHT = 32;
 @Component({
 	selector: 'hub-spreadsheet',
 	standalone: true,
-	imports: [NgTemplateOutlet, TranslatePipe, HubSpreadsheetControlDirective],
-	providers: [{ provide: HUB_TRANSLATION_PREFIX, useValue: 'HUBUI.SPREADSHEET' }],
+	imports: [NgTemplateOutlet, TranslatePipe, HubSpreadsheetControlDirective, HubTooltipDirective],
+	providers: [
+		{ provide: HUB_TRANSLATION_PREFIX, useValue: 'HUBUI.SPREADSHEET' },
+		// A form field opened inside a cell keeps its message for a tooltip: written under the
+		// control it would make the row taller. `providers`, so editor templates see it too.
+		{ provide: HUB_FIELD_FEEDBACK, useValue: signal('tooltip') }
+	],
 	templateUrl: './spreadsheet.component.html',
 	styleUrl: './spreadsheet.component.scss',
 	changeDetection: ChangeDetectionStrategy.OnPush,
@@ -215,7 +220,8 @@ export class HubSpreadsheetComponent<TRow> {
 	 *
 	 * Owned by the host, because validation belongs to whoever knows what the data means. Keeping
 	 * it a plain map rather than tying it to one forms API is what lets the same sheet be driven
-	 * by Signal Forms, by reactive forms, or by nothing at all.
+	 * by Signal Forms, by reactive forms, or by nothing at all. The cell is ringed in the danger
+	 * colour and the message opens in a tooltip on hover or when the keyboard lands on it.
 	 */
 	readonly errors = input<Record<string, string>>({});
 	/** The character this reader types decimals with. */
@@ -440,7 +446,11 @@ export class HubSpreadsheetComponent<TRow> {
 	 * instead, which is the sheet's own.
 	 */
 	readonly opened = output<HubSpreadsheetCellRef<TRow>>();
-	/** Delete was pressed over these cells, the editable ones of the selection. */
+	/**
+	 * `Delete` or `Backspace` was pressed over several cells, or over one that holds a list or a
+	 * yes/no, and these are the editable ones of the selection. A single cell that takes text opens
+	 * its editor empty instead, and its new value arrives through {@link commit}.
+	 */
 	readonly cleared = output<HubSpreadsheetCellRef<TRow>[]>();
 	/** The selected rectangle changed; null when nothing is selected. */
 	readonly selectionChange = output<HubGridRange | null>();
@@ -1959,9 +1969,22 @@ export class HubSpreadsheetComponent<TRow> {
 
 				this.startEdit(intent.seed);
 				break;
-			case 'clear':
-				this.announceCleared();
+			case 'clear': {
+				// One cell empties into its editor, as in any spreadsheet, so the reader can type the
+				// new value straight away. A block still goes to the host through `cleared`. A list
+				// and a yes/no cell have no blank text to open onto.
+				const [range, ...rest] = this.selection();
+				const single = !rest.length && range?.top === range?.bottom && range?.left === range?.right;
+				const kind = this.columns()[active.col].kind;
+
+				if (single && this.canEdit(active.row, active.col) && kind !== 'select' && kind !== 'boolean') {
+					this.startEdit('');
+				} else {
+					this.announceCleared();
+				}
+
 				break;
+			}
 			case 'cancel':
 				this.anchor.set(null);
 				this.announceSelection();

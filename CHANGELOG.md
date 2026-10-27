@@ -1,5 +1,31 @@
 # Changelog
 
+## [22.7.0] - 2026-10-27
+
+### Added
+
+- **Form fields opened inside a cell show their errors in a tooltip.** The sheet provides
+  `HUB_FIELD_FEEDBACK` with `'tooltip'`, so an `ng-hub-ui-forms` field used as a cell editor, or
+  hosted through `provideHubSpreadsheetControls`, keeps the row's height instead of writing its
+  message under the control. Needs `ng-hub-ui-utils` 22.21.0.
+
+### Changed
+
+- **A cell's validation message opens in a danger tooltip.** The message from `errors` used to be
+  the cell's native `title`, a grey browser label that only the pointer could bring up. It now
+  opens in the house tooltip, in the danger colour with white or black text depending on contrast,
+  on hover and also when the keyboard lands on the cell. A cell without an error keeps its own
+  `title`.
+- **`Backspace` or `Delete` on a single cell empties it into its editor**, so the new value can be
+  typed straight away, as in any spreadsheet. The new value arrives through `commit` when the editor
+  closes, and `Escape` leaves the cell as it was. A selection of several cells is still reported
+  through `cleared`, and so are list and yes/no cells, which have no blank text to open onto. See
+  `BREAKING_CHANGES.md`.
+- **The cursor and the selection are drawn only while the sheet holds the focus.** A selection
+  still painted after the reader had left the sheet suggested that typing would land in it, and it
+  did not. Coming back with `Tab` lands on the same cell and draws them again. A cell being edited
+  stays marked, so a picker open on `<body>` keeps its cell.
+
 ## [22.6.0] - 2026-09-30
 
 ### Added

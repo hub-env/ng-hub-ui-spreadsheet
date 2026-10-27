@@ -182,7 +182,7 @@ A column says what it is called and how to get a cell out of a row:
 A column can also **hint at an empty cell**: `placeholder` is shown while the pointer rests on a cell that holds nothing, never in place of a value. A **cell can carry one of its own**, for the row where the column's hint would not tell the truth:
 
 ```typescript
-cell: (row) => ({ value: row.due, editable: true, placeholder: row.id === 'c' ? 'after the cabling' : null })
+cell: (row) => ({ value: row.due, editable: true, placeholder: row.id === 'c' ? 'after the cabling' : null });
 ```
 
 Left out or `null`, the column's placeholder is used.
@@ -225,10 +225,8 @@ open — a product whose folded row opens its variants while its own row is only
 	let-open="open"
 >
 	@if (opensItsVariants(row)) {
-		<a (click)="open()">{{ row.name }}</a>
-	} @else {
-		{{ row.name }}
-	}
+	<a (click)="open()">{{ row.name }}</a>
+	} @else { {{ row.name }} }
 </ng-template>
 ```
 
@@ -256,23 +254,23 @@ For a cell that opens the row's own detail, put the detail in an `expansion` tem
 
 ## ⌨️ Keyboard
 
-| Key                           | What it does                                         |
-| ----------------------------- | ---------------------------------------------------- |
-| Arrows                        | Move one cell                                        |
-| Shift + arrows                | Extend the selection                                 |
-| `Tab` / `Shift+Tab`           | Move sideways, falling onto the next row at the edge |
-| `Home` / `End`                | First and last cell of the row                       |
-| `Ctrl+Home` / `Ctrl+End`      | First and last cell of the sheet                     |
-| `Page Up` / `Page Down`       | Move by `pageSize` rows                              |
-| Any printable character       | Replace the cell and start editing                   |
-| `F2`, `Enter`                 | Edit, keeping the value                              |
-| `Alt` + `Down`                | Open a cell that holds a list or a date              |
-| `Enter` / `Tab` while editing | Commit and move down / right                         |
-| `Escape`                      | Revert the edit, then clear the selection            |
-| `Delete` / `Backspace`        | Empty every editable cell of the selection           |
-| `Ctrl+C` / `X` / `V`          | Copy, cut, paste                                     |
-| `Ctrl+A`                      | Select the sheet                                     |
-| `Ctrl+Space` / `Shift+Space`  | Select the column / the row                          |
+| Key                           | What it does                                                          |
+| ----------------------------- | --------------------------------------------------------------------- |
+| Arrows                        | Move one cell                                                         |
+| Shift + arrows                | Extend the selection                                                  |
+| `Tab` / `Shift+Tab`           | Move sideways, falling onto the next row at the edge                  |
+| `Home` / `End`                | First and last cell of the row                                        |
+| `Ctrl+Home` / `Ctrl+End`      | First and last cell of the sheet                                      |
+| `Page Up` / `Page Down`       | Move by `pageSize` rows                                               |
+| Any printable character       | Replace the cell and start editing                                    |
+| `F2`, `Enter`                 | Edit, keeping the value                                               |
+| `Alt` + `Down`                | Open a cell that holds a list or a date                               |
+| `Enter` / `Tab` while editing | Commit and move down / right                                          |
+| `Escape`                      | Revert the edit, then clear the selection                             |
+| `Delete` / `Backspace`        | Empty one cell into its editor, or every editable cell of a selection |
+| `Ctrl+C` / `X` / `V`          | Copy, cut, paste                                                      |
+| `Ctrl+A`                      | Select the sheet                                                      |
+| `Ctrl+Space` / `Shift+Space`  | Select the column / the row                                           |
 
 ## 📋 The Clipboard
 
@@ -344,58 +342,58 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 
 ### Inputs
 
-| Input                | Type                                      | Default          | Description                                                                       |
-| -------------------- | ----------------------------------------- | ---------------- | --------------------------------------------------------------------------------- |
-| `rows`               | `readonly TRow[]`                         | —                | **Required.** The rows. Never written to.                                         |
-| `columns`            | `readonly HubSpreadsheetColumn<TRow>[]`   | —                | **Required.** What each column shows and allows.                                  |
-| `rowKey`             | `(row: TRow) => string`                   | —                | **Required.** A stable name per row.                                              |
-| `states`             | `Record<string, HubSpreadsheetCellState>` | `{}`             | Save state per cell, keyed `` `${rowKey}\t${columnKey}` ``.                       |
-| `errors`             | `Record<string, string>`                  | `{}`             | A validation message per cell, keyed the same way. Marks the cell, not the sheet. |
-| `decimalMark`        | `',' \| '.'`                              | `','`            | How this reader types decimals.                                                   |
-| `emptyText`          | `string`                                  | `''`             | What an empty sheet says.                                                         |
-| `pageSize`           | `number`                                  | `10`             | Rows travelled by `Page Up` and `Page Down`.                                      |
-| `readonly`           | `boolean`                                 | `false`          | Turns off every editor, whatever the cells say.                                   |
-| `formulas`           | `boolean`                                 | `false`          | Reads a cell that starts with `=` as a formula. See below.                        |
-| `editOn`             | `'click' \| 'double-click'`               | `'double-click'` | What opens the editor with the pointer. Typing opens it either way.               |
-| `expansion`          | `TemplateRef<HubSpreadsheetExpansionContext<TRow>> \| null` | `null` | A template drawn under a row that is open. See below.       |
-| `expandedRow`        | `string \| null`                          | `null`           | Two-way. Which row is open, by its key.                                           |
-| `direction`          | `'auto' \| 'ltr' \| 'rtl'`                | `'auto'`         | Which way the sheet runs. `auto` follows the page; the other two force it.         |
-| `frozenColumns`      | `number`                                  | `0`              | How many columns stay pinned to the leading edge.                                 |
-| `frozenRows`         | `number`                                  | `0`              | How many rows stay pinned below the header.                                       |
-| `virtual`            | `boolean`                                 | `false`          | Draws only the rows in view. Gives the sheet a height; see below.                 |
-| `rowHeight`          | `number`                                  | `0`              | How tall a row is while virtualising. Nought measures the first one drawn.        |
-| `spans`              | `readonly HubGridSpan[]`                  | `[]`             | Merged blocks, declared by their anchor.                                          |
-| `structure`          | `HubSpreadsheetStructureOptions<TRow>`    | `{}`             | Which structural changes are offered. Everything refused by default.              |
-| `retiredColumnKeys`  | `readonly string[]`                       | `[]`             | Aliases of deleted columns, so a new one never reuses them.                       |
-| `contextMenu`        | `boolean`                                 | `false`          | Offers the structural changes on right-click.                                     |
-| `mergeable`          | `boolean`                                 | `false`          | Offers putting cells together, and taking them apart, in that menu.               |
-| `disjointSelection`  | `boolean`                                 | `true`           | Whether `Ctrl`-clicking adds a second block instead of starting a new selection.  |
-| `fillHandle`         | `boolean`                                 | `false`          | Draws the grip at the corner of the selection.                                    |
-| `canUndo`            | `boolean`                                 | `false`          | Whether `Ctrl+Z` has anything to ask for. The history belongs to the host.        |
-| `canRedo`            | `boolean`                                 | `false`          | The same for `Ctrl+Shift+Z` and `Ctrl+Y`.                                         |
-| `resizableColumns`   | `boolean`                                 | `false`          | Lets the reader drag a header's trailing edge.                                    |
-| `reorderableColumns` | `boolean`                                 | `false`          | Lets the reader drag a header to move its column.                                 |
-| `columnWidths`       | `Record<string, number>`                  | `{}`             | Two-way. Widths keyed by alias, so one survives its column being moved.           |
-| `minColumnWidth`     | `number`                                  | `48`             | The floor a drag cannot go below, in pixels.                                      |
+| Input                | Type                                                        | Default          | Description                                                                                                 |
+| -------------------- | ----------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| `rows`               | `readonly TRow[]`                                           | —                | **Required.** The rows. Never written to.                                                                   |
+| `columns`            | `readonly HubSpreadsheetColumn<TRow>[]`                     | —                | **Required.** What each column shows and allows.                                                            |
+| `rowKey`             | `(row: TRow) => string`                                     | —                | **Required.** A stable name per row.                                                                        |
+| `states`             | `Record<string, HubSpreadsheetCellState>`                   | `{}`             | Save state per cell, keyed `` `${rowKey}\t${columnKey}` ``.                                                 |
+| `errors`             | `Record<string, string>`                                    | `{}`             | A validation message per cell, keyed the same way. Rings the cell and opens in a tooltip on hover or focus. |
+| `decimalMark`        | `',' \| '.'`                                                | `','`            | How this reader types decimals.                                                                             |
+| `emptyText`          | `string`                                                    | `''`             | What an empty sheet says.                                                                                   |
+| `pageSize`           | `number`                                                    | `10`             | Rows travelled by `Page Up` and `Page Down`.                                                                |
+| `readonly`           | `boolean`                                                   | `false`          | Turns off every editor, whatever the cells say.                                                             |
+| `formulas`           | `boolean`                                                   | `false`          | Reads a cell that starts with `=` as a formula. See below.                                                  |
+| `editOn`             | `'click' \| 'double-click'`                                 | `'double-click'` | What opens the editor with the pointer. Typing opens it either way.                                         |
+| `expansion`          | `TemplateRef<HubSpreadsheetExpansionContext<TRow>> \| null` | `null`           | A template drawn under a row that is open. See below.                                                       |
+| `expandedRow`        | `string \| null`                                            | `null`           | Two-way. Which row is open, by its key.                                                                     |
+| `direction`          | `'auto' \| 'ltr' \| 'rtl'`                                  | `'auto'`         | Which way the sheet runs. `auto` follows the page; the other two force it.                                  |
+| `frozenColumns`      | `number`                                                    | `0`              | How many columns stay pinned to the leading edge.                                                           |
+| `frozenRows`         | `number`                                                    | `0`              | How many rows stay pinned below the header.                                                                 |
+| `virtual`            | `boolean`                                                   | `false`          | Draws only the rows in view. Gives the sheet a height; see below.                                           |
+| `rowHeight`          | `number`                                                    | `0`              | How tall a row is while virtualising. Nought measures the first one drawn.                                  |
+| `spans`              | `readonly HubGridSpan[]`                                    | `[]`             | Merged blocks, declared by their anchor.                                                                    |
+| `structure`          | `HubSpreadsheetStructureOptions<TRow>`                      | `{}`             | Which structural changes are offered. Everything refused by default.                                        |
+| `retiredColumnKeys`  | `readonly string[]`                                         | `[]`             | Aliases of deleted columns, so a new one never reuses them.                                                 |
+| `contextMenu`        | `boolean`                                                   | `false`          | Offers the structural changes on right-click.                                                               |
+| `mergeable`          | `boolean`                                                   | `false`          | Offers putting cells together, and taking them apart, in that menu.                                         |
+| `disjointSelection`  | `boolean`                                                   | `true`           | Whether `Ctrl`-clicking adds a second block instead of starting a new selection.                            |
+| `fillHandle`         | `boolean`                                                   | `false`          | Draws the grip at the corner of the selection.                                                              |
+| `canUndo`            | `boolean`                                                   | `false`          | Whether `Ctrl+Z` has anything to ask for. The history belongs to the host.                                  |
+| `canRedo`            | `boolean`                                                   | `false`          | The same for `Ctrl+Shift+Z` and `Ctrl+Y`.                                                                   |
+| `resizableColumns`   | `boolean`                                                   | `false`          | Lets the reader drag a header's trailing edge.                                                              |
+| `reorderableColumns` | `boolean`                                                   | `false`          | Lets the reader drag a header to move its column.                                                           |
+| `columnWidths`       | `Record<string, number>`                                    | `{}`             | Two-way. Widths keyed by alias, so one survives its column being moved.                                     |
+| `minColumnWidth`     | `number`                                                    | `48`             | The floor a drag cannot go below, in pixels.                                                                |
 
 ### Outputs
 
-| Output                  | Payload                         | Fires when                                                                               |
-| ----------------------- | ------------------------------- | ---------------------------------------------------------------------------------------- |
-| `commit`                | `HubSpreadsheetCommit<TRow>`    | A cell took a new value, and it differs from the old one.                                |
-| `pasted`                | `HubSpreadsheetPaste<TRow>`     | A block was pasted.                                                                      |
-| `filled`                | `HubSpreadsheetPaste<TRow>`     | The fill handle was dragged and released.                                                |
-| `cleared`               | `HubSpreadsheetCellRef<TRow>[]` | `Delete` was pressed over a selection.                                                   |
+| Output                  | Payload                         | Fires when                                                                                                              |
+| ----------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `commit`                | `HubSpreadsheetCommit<TRow>`    | A cell took a new value, and it differs from the old one.                                                               |
+| `pasted`                | `HubSpreadsheetPaste<TRow>`     | A block was pasted.                                                                                                     |
+| `filled`                | `HubSpreadsheetPaste<TRow>`     | The fill handle was dragged and released.                                                                               |
+| `cleared`               | `HubSpreadsheetCellRef<TRow>[]` | `Delete` or `Backspace` was pressed over several cells. One cell opens its editor instead.                              |
 | `opened`                | `HubSpreadsheetCellRef<TRow>`   | A cell's template said the reader asked to open it — with the pointer, or with `Enter` where there is no field to edit. |
-| `selectionChange`       | `HubGridRange \| null`          | The selected rectangle changed.                                                          |
-| `selectionRangesChange` | `readonly HubGridRange[]`       | Every rectangle of the selection, whenever it changes. One entry unless blocks were held with `Ctrl`. |
-| `insertRequested`       | `HubSpreadsheetInsertRequest`   | The reader asked to add rows or columns.                                                 |
-| `deleteRequested`       | `HubSpreadsheetDeleteRequest`   | The reader asked to remove rows or columns.                                              |
-| `undoRequested`         | `void`                          | `Ctrl+Z`. The sheet undoes nothing itself.                                               |
-| `redoRequested`         | `void`                          | `Ctrl+Shift+Z` or `Ctrl+Y`.                                                              |
-| `columnMoved`           | `{ from, to, key, keys }`       | A header was dropped. `keys` arrives already reordered.                                  |
-| `mergeRequested`        | `HubSpreadsheetMergeRequest`    | The reader asked to put a selection together. Carries what it swallows.                  |
-| `unmergeRequested`      | `readonly HubGridCoords[]`      | The reader asked to take apart the blocks their selection touches.                       |
+| `selectionChange`       | `HubGridRange \| null`          | The selected rectangle changed.                                                                                         |
+| `selectionRangesChange` | `readonly HubGridRange[]`       | Every rectangle of the selection, whenever it changes. One entry unless blocks were held with `Ctrl`.                   |
+| `insertRequested`       | `HubSpreadsheetInsertRequest`   | The reader asked to add rows or columns.                                                                                |
+| `deleteRequested`       | `HubSpreadsheetDeleteRequest`   | The reader asked to remove rows or columns.                                                                             |
+| `undoRequested`         | `void`                          | `Ctrl+Z`. The sheet undoes nothing itself.                                                                              |
+| `redoRequested`         | `void`                          | `Ctrl+Shift+Z` or `Ctrl+Y`.                                                                                             |
+| `columnMoved`           | `{ from, to, key, keys }`       | A header was dropped. `keys` arrives already reordered.                                                                 |
+| `mergeRequested`        | `HubSpreadsheetMergeRequest`    | The reader asked to put a selection together. Carries what it swallows.                                                 |
+| `unmergeRequested`      | `readonly HubGridCoords[]`      | The reader asked to take apart the blocks their selection touches.                                                      |
 
 ### Helpers
 
