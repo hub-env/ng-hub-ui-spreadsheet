@@ -1275,7 +1275,9 @@ export class HubSpreadsheetComponent<TRow> {
 		}
 
 		// How far the dragged one travels to reach its slot: the size of everything it passed.
-		const passed = items.filter((item) => (to > move.from ? item.index > move.from && item.index <= to : item.index >= to && item.index < move.from));
+		const passed = items.filter((item) =>
+			to > move.from ? item.index > move.from && item.index <= to : item.index >= to && item.index < move.from
+		);
 		const travel = passed.reduce((sum, item) => sum + item.size, 0) * (to < move.from ? -1 : 1);
 
 		if (to !== move.to || travel !== move.travel) {

@@ -2037,7 +2037,9 @@ describe('HubSpreadsheetComponent', () => {
 	function layOut(): void {
 		const table: HTMLElement = fixture.nativeElement.querySelector('.hub-spreadsheet__table');
 		const define = (element: HTMLElement, values: Record<string, number>) =>
-			Object.entries(values).forEach(([key, value]) => Object.defineProperty(element, key, { configurable: true, value }));
+			Object.entries(values).forEach(([key, value]) =>
+				Object.defineProperty(element, key, { configurable: true, value })
+			);
 
 		table.getBoundingClientRect = () => ({ top: 0, left: 0, right: 300, bottom: 120, width: 300, height: 120 }) as DOMRect;
 		define(table, { offsetWidth: 300 });
@@ -2050,7 +2052,6 @@ describe('HubSpreadsheetComponent', () => {
 	}
 
 	describe('dragging columns', () => {
-
 		function grips(): NodeListOf<HTMLElement> {
 			return fixture.nativeElement.querySelectorAll('.hub-spreadsheet__resize-grip');
 		}
