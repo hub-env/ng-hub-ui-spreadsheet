@@ -17,6 +17,7 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 |                   | Tooltip (`title`)                                                           |     ✅      |       ❌        |
 | **Rows**          | A row opens in place, with its own content (`expansion` / `expandedRow`)    |     ✅      |       ✅        |
 |                   | A group of rows that folds under its heading (`rowLevel` / `collapsedRows`) |     ✅      |       ✅        |
+|                   | Reordering by a grip shown on hover (`reorderableRows`, `rowMoved`)         |     ✅      |       ✅        |
 | **Columns**       | Stable alias plus visible header (`key` / `header`)                         |     ✅      |       ❌        |
 |                   | A group of columns that folds away (`level` / `collapsedColumns`)           |     ✅      |       ✅        |
 |                   | Translated header (`translate`)                                             |     ✅      |       ❌        |
@@ -148,7 +149,7 @@ Fifteen, all on the [documentation page](https://hubui.dev/en/spreadsheet/exampl
 | Merged cells                  | Declared blocks, and merging or splitting from the menu                   |
 | Only what is in view          | Ten thousand rows and fifty-two columns                                   |
 | Fill and undo                 | The handle, the series it continues, and one step per gesture             |
-| Columns resized and reordered | Dragging an edge, dragging a header                                       |
+| Resized and reordered         | Dragging an edge, a header, or a row's grip                               |
 | Save state per cell           | The five states, drawn as a bar                                           |
 | Structural changes            | Insert and delete, and the permissions that refuse them                   |
 | Signal Forms                  | The sheet as a field tree, with the errors it reports                     |

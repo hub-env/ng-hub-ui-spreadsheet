@@ -48,10 +48,11 @@
 						[style.width.px]="widthOf(columnIndex)"
 						[attr.data-header]="columnIndex"
 						[class.hub-spreadsheet__header--end-of-sheet]="columnIndex === bounds().cols - 1"
-						[class.hub-spreadsheet__header--moving]="isMovingColumn(columnIndex)"
-						[class.hub-spreadsheet__header--move-target]="isMoveTarget(columnIndex)"
-						(mousedown)="onHeaderMouseDown($event, columnIndex)"
-						(mouseenter)="onHeaderMouseEnter(columnIndex)"
+						[class.hub-spreadsheet__move-source]="isMoveSource('column', columnIndex)"
+						[class.hub-spreadsheet__move-back]="moveShift('column', columnIndex) === 'back'"
+						[class.hub-spreadsheet__move-forward]="moveShift('column', columnIndex) === 'forward'"
+						(pointerdown)="startMove($event, 'column', columnIndex)"
+						(mouseenter)="hoveredColumn.set(columnIndex); hoveredRow.set(null)"
 						[attr.aria-colindex]="columnIndex + 1"
 					>
 						<span [class.hub-spreadsheet__header-text--hidden]="column.headerHidden">
@@ -69,6 +70,7 @@
 							<span
 								class="hub-spreadsheet__resize-grip"
 								aria-hidden="true"
+								(pointerdown)="$event.stopPropagation()"
 								(mousedown)="onResizeStart($event, columnIndex)"
 							></span>
 						}
@@ -102,6 +104,9 @@
 					role="row"
 					[class.hub-spreadsheet__row--frozen]="isFrozenRow(rowIndex)"
 					[class.hub-spreadsheet__row--frozen-edge]="isRowEdge(rowIndex)"
+					[class.hub-spreadsheet__move-source]="isMoveSource('row', rowIndex)"
+					[class.hub-spreadsheet__move-back]="moveShift('row', rowIndex) === 'back'"
+					[class.hub-spreadsheet__move-forward]="moveShift('row', rowIndex) === 'forward'"
 					[attr.aria-rowindex]="rowIndex + 1"
 				>
 					@if (columnWindow().before > 0) {
@@ -152,6 +157,9 @@
 								[class.hub-spreadsheet__cell--frozen-row]="isFrozenRow(rowIndex)"
 								[class.hub-spreadsheet__cell--frozen-col-edge]="isColumnEdge(colIndex)"
 								[class.hub-spreadsheet__cell--frozen-row-edge]="isRowEdge(rowIndex)"
+								[class.hub-spreadsheet__move-source]="isMoveSource('column', colIndex)"
+								[class.hub-spreadsheet__move-back]="moveShift('column', colIndex) === 'back'"
+								[class.hub-spreadsheet__move-forward]="moveShift('column', colIndex) === 'forward'"
 								[style.inset-inline-start.px]="columnOffsetOf(colIndex)"
 								[style.inset-block-start.px]="rowOffsetOf(rowIndex)"
 								[class.hub-spreadsheet__cell--invalid]="
@@ -404,6 +412,46 @@ clickable to write its alias into the formula. -->
 				(mousedown)="$event.preventDefault(); $event.stopPropagation()"
 				(click)="toggleByKey(toggle.key)"
 			></button>
+		}
+	</div>
+}
+
+@if (!move() && !pressing()) {
+	<!-- The grips that move a row or a column: one over the leading edge of the row under the
+	pointer, one over the top edge of the column under it, drawn like the coordinate badges and
+	arriving the same way. Separate elements rather than cells, so the cell underneath still
+	answers hover and click as it always did. -->
+	<div class="hub-spreadsheet__move-grips">
+		@for (handle of rowHandles(); track handle.row) {
+			@if (handle.row === hoveredRow()) {
+				<button
+					class="hub-spreadsheet__move-grip hub-spreadsheet__move-grip--row"
+					type="button"
+					tabindex="-1"
+					[style.inset-block-start.px]="handle.top"
+					[style.block-size.px]="handle.height"
+					[attr.aria-label]="rowHandleLabel() || null"
+					(pointerdown)="startMove($event, 'row', handle.row)"
+				>
+					<span class="hub-spreadsheet__move-grip-badge"></span>
+				</button>
+			}
+		}
+
+		@for (handle of columnHandles(); track handle.col) {
+			@if (handle.col === hoveredColumn()) {
+				<button
+					class="hub-spreadsheet__move-grip hub-spreadsheet__move-grip--column"
+					type="button"
+					tabindex="-1"
+					aria-hidden="true"
+					[style.inset-inline-start.px]="handle.start"
+					[style.inline-size.px]="handle.width"
+					(pointerdown)="startMove($event, 'column', handle.col)"
+				>
+					<span class="hub-spreadsheet__move-grip-badge"></span>
+				</button>
+			}
 		}
 	</div>
 }

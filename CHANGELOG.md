@@ -1,5 +1,34 @@
 # Changelog
 
+## [22.8.0] - 2026-10-28
+
+### Added
+
+- **A row can be dragged to another place**, as a column already could. With `reorderableRows`,
+  hovering a row shows a grip over its leading edge, and dragging it reports the drop through
+  `rowMoved` with the keys already reordered, in the same shape `columnMoved` uses. The sheet
+  reorders nothing itself; the row order stays the owner's. `rowHandleLabel` gives the grip its
+  accessible name. Merged blocks are not remapped: a move across one leaves `spans` pointing at the
+  old positions.
+- **A column shows a grip as well.** With `reorderableColumns`, hovering a column shows a grip over
+  the top edge of its header. Dragging the header itself still works.
+
+### Changed
+
+- **A move now shows what is happening.** Dragging a row or a column runs on the shared pointer drag
+  session from `ng-hub-ui-utils`: a copy follows the pointer, the rows or columns it passes step
+  aside to open its slot, and the viewport scrolls when the pointer nears its top or bottom edge. A
+  press that does not travel a few pixels is still a click. With reduced motion requested, nothing
+  slides.
+- The grips hide while a button is held over the sheet, so they never cover a selection, a fill or a
+  resize in progress.
+
+### Removed
+
+- The `hub-spreadsheet__header--moving` and `hub-spreadsheet__header--move-target` classes. The
+  header being dragged now carries `hub-spreadsheet__move-source`. This only matters to a stylesheet
+  that targeted them.
+
 ## [22.7.0] - 2026-10-27
 
 ### Added

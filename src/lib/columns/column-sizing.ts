@@ -63,3 +63,11 @@ export function moveColumn<T>(items: readonly T[], from: number, to: number): T[
 
 	return next;
 }
+
+/**
+ * The same arithmetic as {@link moveColumn}, under the name a row reorder reads as.
+ *
+ * The maths does not know which axis it is moving — the list is just a list — so this is the
+ * same function, not a second implementation to keep in step with the first.
+ */
+export const moveRow = moveColumn;

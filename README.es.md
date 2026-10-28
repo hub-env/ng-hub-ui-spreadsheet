@@ -372,7 +372,9 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `canUndo`            | `boolean`                                                   | `false`          | Si `Ctrl+Z` tiene algo que pedir. El histórico es del anfitrión.                                                                       |
 | `canRedo`            | `boolean`                                                   | `false`          | Lo mismo para `Ctrl+Mayús+Z` y `Ctrl+Y`.                                                                                               |
 | `resizableColumns`   | `boolean`                                                   | `false`          | Permite arrastrar el borde final de una cabecera.                                                                                      |
-| `reorderableColumns` | `boolean`                                                   | `false`          | Permite arrastrar una cabecera para mover su columna.                                                                                  |
+| `reorderableColumns` | `boolean`                                                   | `false`          | Permite arrastrar una cabecera para mover su columna. Al pasar por encima de una columna aparece además un asa sobre su cabecera.      |
+| `reorderableRows`    | `boolean`                                                   | `false`          | Permite arrastrar una fila para moverla, desde un asa que aparece en su borde inicial al pasar por encima.                             |
+| `rowHandleLabel`     | `string`                                                    | `''`             | El nombre accesible del asa de las filas. Lo pone el anfitrión: la hoja no lleva diccionario.                                          |
 | `columnWidths`       | `Record<string, number>`                                    | `{}`             | De doble vía. Anchos por alias, así uno sobrevive a que muevan su columna.                                                             |
 | `minColumnWidth`     | `number`                                                    | `48`             | El suelo por debajo del cual no baja un arrastre, en píxeles.                                                                          |
 
@@ -392,6 +394,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `undoRequested`         | `void`                          | `Ctrl+Z`. La hoja no deshace nada por su cuenta.                                                                              |
 | `redoRequested`         | `void`                          | `Ctrl+Mayús+Z` o `Ctrl+Y`.                                                                                                    |
 | `columnMoved`           | `{ from, to, key, keys }`       | Se suelta una cabecera. `keys` llega ya reordenado.                                                                           |
+| `rowMoved`              | `{ from, to, key, keys }`       | Se suelta una fila. `keys` llega ya reordenado.                                                                               |
 | `mergeRequested`        | `HubSpreadsheetMergeRequest`    | El lector pide combinar una selección. Incluye lo que absorbe.                                                                |
 | `unmergeRequested`      | `readonly HubGridCoords[]`      | El lector pide separar los bloques que toca su selección.                                                                     |
 

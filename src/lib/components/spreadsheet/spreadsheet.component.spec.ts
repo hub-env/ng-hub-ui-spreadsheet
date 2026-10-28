@@ -60,6 +60,7 @@ function lines(): Line[] {
 			[(expandedRow)]="expandedRow"
 			[resizableColumns]="resizableColumns()"
 			[reorderableColumns]="reorderableColumns()"
+			[reorderableRows]="reorderableRows()"
 			[(columnWidths)]="columnWidths"
 			[canUndo]="canUndo()"
 			[canRedo]="canRedo()"
@@ -71,6 +72,7 @@ function lines(): Line[] {
 			(selectionRangesChange)="ranges = $event"
 			(filled)="fills.push($event)"
 			(columnMoved)="moves.push($event)"
+			(rowMoved)="rowMoves.push($event)"
 			(undoRequested)="undos = undos + 1"
 			(redoRequested)="redos = redos + 1"
 			(insertRequested)="inserts.push($event)"
@@ -104,6 +106,7 @@ class HostComponent {
 	readonly direction = signal<'auto' | 'ltr' | 'rtl'>('auto');
 	readonly resizableColumns = signal(false);
 	readonly reorderableColumns = signal(false);
+	readonly reorderableRows = signal(false);
 	readonly columnWidths = signal<Record<string, number>>({});
 	readonly canUndo = signal(false);
 	readonly canRedo = signal(false);
@@ -124,6 +127,7 @@ class HostComponent {
 	commits: HubSpreadsheetCommit<Line>[] = [];
 	fills: HubSpreadsheetPaste<Line>[] = [];
 	moves: Array<{ from: number; to: number; key: string; keys: string[] }> = [];
+	rowMoves: Array<{ from: number; to: number; key: string; keys: string[] }> = [];
 	undos = 0;
 	redos = 0;
 	pastes: HubSpreadsheetPaste<Line>[] = [];
@@ -2006,10 +2010,46 @@ describe('HubSpreadsheetComponent', () => {
 		});
 	});
 
+	/** A pointer event the shared drag session can read: jsdom has no PointerEvent of its own. */
+	function pointer(type: string, clientX: number, clientY: number): Event {
+		const event = new Event(type, { bubbles: true, cancelable: true });
+
+		return Object.assign(event, { clientX, clientY, pointerId: 1, button: 0 });
+	}
+
+	function header(index: number): HTMLElement {
+		return fixture.nativeElement.querySelector(`[data-header="${index}"]`);
+	}
+
+	function hover(row: number, col: number): void {
+		cell(row, col).dispatchEvent(new MouseEvent('mouseenter'));
+		fixture.detectChanges();
+	}
+
+	function moveGrips(axis: 'row' | 'column'): NodeListOf<HTMLElement> {
+		return fixture.nativeElement.querySelectorAll(`.hub-spreadsheet__move-grip--${axis}`);
+	}
+
+	/**
+	 * jsdom lays nothing out, so the geometry a move reads is supplied here: rows 30px tall under a
+	 * 30px header, columns 100px wide, the table at the origin.
+	 */
+	function layOut(): void {
+		const table: HTMLElement = fixture.nativeElement.querySelector('.hub-spreadsheet__table');
+		const define = (element: HTMLElement, values: Record<string, number>) =>
+			Object.entries(values).forEach(([key, value]) => Object.defineProperty(element, key, { configurable: true, value }));
+
+		table.getBoundingClientRect = () => ({ top: 0, left: 0, right: 300, bottom: 120, width: 300, height: 120 }) as DOMRect;
+		define(table, { offsetWidth: 300 });
+		fixture.nativeElement
+			.querySelectorAll('.hub-spreadsheet__row[aria-rowindex]')
+			.forEach((row: HTMLElement, index: number) => define(row, { offsetTop: 30 + index * 30, offsetHeight: 30 }));
+		fixture.nativeElement
+			.querySelectorAll('.hub-spreadsheet__header[data-header]')
+			.forEach((cell: HTMLElement, index: number) => define(cell, { offsetLeft: index * 100, offsetWidth: 100 }));
+	}
+
 	describe('dragging columns', () => {
-		function header(index: number): HTMLElement {
-			return fixture.nativeElement.querySelector(`[data-header="${index}"]`);
-		}
 
 		function grips(): NodeListOf<HTMLElement> {
 			return fixture.nativeElement.querySelectorAll('.hub-spreadsheet__resize-grip');
@@ -2047,24 +2087,58 @@ describe('HubSpreadsheetComponent', () => {
 			expect(header(0).style.width).toBe('');
 		});
 
+		it('shows the grip of the column under the pointer, and only that one', () => {
+			host.reorderableColumns.set(true);
+			fixture.detectChanges();
+			expect(moveGrips('column')).toHaveLength(0);
+
+			hover(0, 1);
+
+			expect(moveGrips('column')).toHaveLength(1);
+		});
+
 		it('says nothing when a column is dropped where it already was', () => {
 			host.reorderableColumns.set(true);
 			fixture.detectChanges();
+			layOut();
 
-			header(1).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-			document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+			header(1).dispatchEvent(pointer('pointerdown', 150, 10));
+			window.dispatchEvent(pointer('pointermove', 160, 10));
+			window.dispatchEvent(pointer('pointerup', 160, 10));
 			fixture.detectChanges();
 
 			expect(host.moves).toHaveLength(0);
 		});
 
+		it('lets the columns it passes step aside while it is dragged', () => {
+			host.reorderableColumns.set(true);
+			fixture.detectChanges();
+			layOut();
+
+			header(0).dispatchEvent(pointer('pointerdown', 50, 10));
+			window.dispatchEvent(pointer('pointermove', 170, 10));
+			fixture.detectChanges();
+
+			expect(header(0).classList).toContain('hub-spreadsheet__move-source');
+			expect(header(1).classList).toContain('hub-spreadsheet__move-back');
+			expect(header(2).classList).not.toContain('hub-spreadsheet__move-back');
+			expect(document.querySelector('.hub-drag-ghost')).not.toBeNull();
+
+			window.dispatchEvent(pointer('pointerup', 170, 10));
+			fixture.detectChanges();
+
+			expect(document.querySelector('.hub-drag-ghost')).toBeNull();
+			expect(header(1).classList).not.toContain('hub-spreadsheet__move-back');
+		});
+
 		it('reports the drop with the reordered aliases, and changes nothing itself', () => {
 			host.reorderableColumns.set(true);
 			fixture.detectChanges();
+			layOut();
 
-			header(0).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-			header(2).dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
-			document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+			header(0).dispatchEvent(pointer('pointerdown', 50, 10));
+			window.dispatchEvent(pointer('pointermove', 270, 10));
+			window.dispatchEvent(pointer('pointerup', 270, 10));
 			fixture.detectChanges();
 
 			expect(host.moves).toHaveLength(1);
@@ -2075,12 +2149,82 @@ describe('HubSpreadsheetComponent', () => {
 		});
 
 		it('does not start a move when reordering was not asked for', () => {
-			header(0).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-			header(2).dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
-			document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+			layOut();
+
+			header(0).dispatchEvent(pointer('pointerdown', 50, 10));
+			window.dispatchEvent(pointer('pointermove', 270, 10));
+			window.dispatchEvent(pointer('pointerup', 270, 10));
 			fixture.detectChanges();
 
 			expect(host.moves).toHaveLength(0);
+		});
+	});
+
+	describe('dragging rows', () => {
+		function rowGrip(): HTMLElement {
+			return moveGrips('row')[0];
+		}
+
+		it('offers a grip only on the hovered row, and only when reordering is asked for', () => {
+			hover(1, 0);
+			expect(moveGrips('row')).toHaveLength(0);
+
+			host.reorderableRows.set(true);
+			fixture.detectChanges();
+			hover(1, 0);
+
+			expect(moveGrips('row')).toHaveLength(1);
+		});
+
+		it('hides the grips while a button is held over the sheet', () => {
+			host.reorderableRows.set(true);
+			fixture.detectChanges();
+			hover(1, 0);
+
+			cell(1, 0).dispatchEvent(pointer('pointerdown', 10, 45));
+			fixture.detectChanges();
+			expect(moveGrips('row')).toHaveLength(0);
+
+			document.dispatchEvent(pointer('pointerup', 10, 45));
+			fixture.detectChanges();
+			expect(moveGrips('row')).toHaveLength(1);
+		});
+
+		it('says nothing when a row is dropped where it already was', () => {
+			host.reorderableRows.set(true);
+			fixture.detectChanges();
+			layOut();
+			hover(1, 0);
+
+			rowGrip().dispatchEvent(pointer('pointerdown', 0, 75));
+			window.dispatchEvent(pointer('pointermove', 0, 85));
+			window.dispatchEvent(pointer('pointerup', 0, 85));
+			fixture.detectChanges();
+
+			expect(host.rowMoves).toHaveLength(0);
+		});
+
+		it('reports the drop with the reordered keys, and changes nothing itself', () => {
+			host.reorderableRows.set(true);
+			fixture.detectChanges();
+			layOut();
+			hover(0, 0);
+
+			rowGrip().dispatchEvent(pointer('pointerdown', 0, 45));
+			window.dispatchEvent(pointer('pointermove', 0, 110));
+			fixture.detectChanges();
+
+			// While it moves the grips are gone: the floating copy is what the reader holds.
+			expect(moveGrips('row')).toHaveLength(0);
+
+			window.dispatchEvent(pointer('pointerup', 0, 110));
+			fixture.detectChanges();
+
+			expect(host.rowMoves).toHaveLength(1);
+			expect(host.rowMoves[0]).toMatchObject({ from: 0, to: 2, key: 'a' });
+			expect(host.rowMoves[0].keys).toEqual(['b', 'c', 'a']);
+			// The sheet never reorders on its own: the rows it renders are unchanged.
+			expect(host.rows()[0].id).toBe('a');
 		});
 	});
 

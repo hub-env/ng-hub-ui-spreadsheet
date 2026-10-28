@@ -46,11 +46,18 @@ import {
 	resolveGridIntent,
 	spanAt
 } from 'ng-hub-ui-utils';
-import { HUB_FIELD_FEEDBACK, HUB_TRANSLATION_PREFIX, HubTooltipDirective, TranslatePipe } from 'ng-hub-ui-utils';
+import {
+	createPointerDragSession,
+	HUB_FIELD_FEEDBACK,
+	HUB_TRANSLATION_PREFIX,
+	HubTooltipDirective,
+	PointerDragSession,
+	TranslatePipe
+} from 'ng-hub-ui-utils';
 import { displayValue, isTruthy, parseForColumn } from '../../columns/cell-values';
 import { HubSpreadsheetEditorContext, HubSpreadsheetEditorDirective } from './spreadsheet-editor.directive';
 import { HubSpreadsheetCellContext, HubSpreadsheetCellDirective } from './spreadsheet-cell.directive';
-import { moveColumn, resolveColumnWidth } from '../../columns/column-sizing';
+import { moveColumn, moveRow, resolveColumnWidth } from '../../columns/column-sizing';
 import { fillValues } from '../../fill/fill-series';
 import { frozenOffsets, isFrozenEdge } from './frozen-panes';
 import { revealPicker } from './reveal-picker';
@@ -145,6 +152,13 @@ const FIRST_PASS_ROW_HEIGHT = 32;
 		'[class.hub-spreadsheet--formula]': 'writingFormula()',
 		'[class.hub-spreadsheet--virtual]': 'virtual()',
 		'[class.hub-spreadsheet--rtl]': 'rtl()',
+		'[class.hub-spreadsheet--moving]': 'move() !== null',
+		'[style.--move-size]': "move() ? move()!.size + 'px' : null",
+		'[style.--move-travel]': "move() ? move()!.travel + 'px' : null",
+		'(mouseleave)': 'clearHover()',
+		'(pointerdown)': 'pressing.set(true)',
+		'(document:pointerup)': 'pressing.set(false)',
+		'(document:pointercancel)': 'pressing.set(false)',
 		'(document:mouseup)': 'endDrag()',
 		'(document:mousemove)': 'onPointerMove($event)',
 		'(document:mousedown)': 'closeMenu()',
@@ -157,6 +171,9 @@ export class HubSpreadsheetComponent<TRow> {
 	readonly #destroyRef = inject(DestroyRef);
 
 	constructor() {
+		// A sheet removed mid-drag would leave its floating copy on the page.
+		this.#destroyRef.onDestroy(() => this.#moveSession?.destroy());
+
 		afterNextRender(
 			() => {
 				// The list of suggestions hangs in the window rather than in the sheet, which is how
@@ -289,6 +306,16 @@ export class HubSpreadsheetComponent<TRow> {
 	readonly resizableColumns = input(false, { transform: booleanAttribute });
 	/** Whether a reader may drag a header to put the column somewhere else. */
 	readonly reorderableColumns = input(false, { transform: booleanAttribute });
+	/**
+	 * Whether a reader may drag a row to put it somewhere else.
+	 *
+	 * Off unless asked for, like every other structural change. Drawn as a floating handle over
+	 * the frame's leading edge — see {@link rowHandles} — rather than as a column the owner has
+	 * to make room for, the same choice {@link expandToggle} already makes for a row's expansion.
+	 */
+	readonly reorderableRows = input(false, { transform: booleanAttribute });
+	/** The accessible name of a row's drag handle, the owner's string — the sheet keeps no dictionary. */
+	readonly rowHandleLabel = input('');
 	/**
 	 * The width of each column in pixels, keyed by alias.
 	 *
@@ -477,6 +504,14 @@ export class HubSpreadsheetComponent<TRow> {
 	 */
 	readonly columnMoved = output<{ from: number; to: number; key: string; keys: string[] }>();
 	/**
+	 * The reader dropped a row somewhere else.
+	 *
+	 * Reported rather than applied: the row list belongs to the owner, as the columns' does. The
+	 * payload mirrors {@link columnMoved} exactly — same shape, same reasoning — so a host that
+	 * already handles one reorder handles the other with the same line of code.
+	 */
+	readonly rowMoved = output<{ from: number; to: number; key: string; keys: string[] }>();
+	/**
 	 * The reader asked to put a selection together into one block.
 	 *
 	 * The payload carries the block to create and the anchors of the blocks it swallows, because a
@@ -544,10 +579,24 @@ export class HubSpreadsheetComponent<TRow> {
 	protected readonly fillTarget = signal<HubGridRange | null>(null);
 	/** The column being widened, with where the pointer started and how wide it then was. */
 	private resizing: { col: number; startX: number; startWidth: number } | null = null;
-	/** The column being dragged to another place. */
-	protected readonly movingColumn = signal<number | null>(null);
-	/** Where it would land if dropped now. */
-	protected readonly moveTargetColumn = signal<number | null>(null);
+	/**
+	 * The row or column being dragged to another place: where it came from, where it would land if
+	 * dropped now, how big it is (the room the others make for it) and how far it has travelled to
+	 * reach that slot. Null while nothing is moving.
+	 */
+	protected readonly move = signal<{
+		readonly axis: 'row' | 'column';
+		readonly from: number;
+		readonly to: number;
+		readonly size: number;
+		readonly travel: number;
+	} | null>(null);
+	/** The row and column under the pointer, which decide which grip shows. */
+	protected readonly hoveredRow = signal<number | null>(null);
+	protected readonly hoveredColumn = signal<number | null>(null);
+	/** Whether a button is held over the sheet: selecting, filling or resizing hides the grips. */
+	protected readonly pressing = signal(false);
+	#moveSession: PointerDragSession | null = null;
 	/** Where the structural menu sits, in pixels from the sheet's own corner; null when closed. */
 	protected readonly menuAt = signal<{ x: number; y: number } | null>(null);
 
@@ -1028,6 +1077,282 @@ export class HubSpreadsheetComponent<TRow> {
 	/** Opens the row the toggle belongs to, or closes it when it was already the open one. */
 	protected toggleByKey(key: string): void {
 		this.expandedRow.set(this.expandedRow() === key ? null : key);
+	}
+
+	/**
+	 * Where each row's grip goes, measured the same way {@link expansionToggles} is: a floating
+	 * layer over the frame's leading edge rather than a column the owner has to make room for.
+	 * Only the grip of the row under the pointer is drawn; every one is measured so it is ready.
+	 */
+	protected readonly rowHandles = signal<readonly { readonly top: number; readonly height: number; readonly row: number }[]>(
+		[]
+	);
+	/** Where each column's grip goes, over the top edge of its header. */
+	protected readonly columnHandles = signal<
+		readonly { readonly start: number; readonly width: number; readonly col: number }[]
+	>([]);
+
+	private readonly measureMoveHandles = afterRenderEffect({
+		read: () => {
+			this.scrollTop();
+			this.scrollLeft();
+			this.columnWidths();
+			this.columns();
+
+			const host = this.#host.nativeElement;
+			const frame = host.getBoundingClientRect();
+
+			if (!this.reorderableRows()) {
+				if (this.rowHandles().length) {
+					this.rowHandles.set([]);
+				}
+			} else {
+				const drawn = this.drawnRows();
+				// The empty-state line is drawn as a row too, and there is nothing in it to move.
+				const rows = host.querySelectorAll<HTMLElement>('.hub-spreadsheet__row:not(.hub-spreadsheet__row--empty)');
+
+				this.rowHandles.set(
+					[...rows].map((row, position) => {
+						const box = row.getBoundingClientRect();
+
+						return {
+							top: Math.round(box.top - frame.top),
+							height: Math.round(box.height),
+							row: drawn[position] ?? position
+						};
+					})
+				);
+			}
+
+			if (!this.reorderableColumns()) {
+				if (this.columnHandles().length) {
+					this.columnHandles.set([]);
+				}
+			} else {
+				const rtl = this.rtl();
+
+				this.columnHandles.set(
+					[...host.querySelectorAll<HTMLElement>('.hub-spreadsheet__header[data-header]')].map((cell) => {
+						const box = cell.getBoundingClientRect();
+
+						return {
+							start: Math.round(rtl ? frame.right - box.right : box.left - frame.left),
+							width: Math.round(box.width),
+							col: Number(cell.dataset['header'])
+						};
+					})
+				);
+			}
+		}
+	});
+
+	/** Forgets which row and column were under the pointer once it leaves the sheet. */
+	protected clearHover(): void {
+		this.hoveredRow.set(null);
+		this.hoveredColumn.set(null);
+	}
+
+	/**
+	 * Starts moving a row or a column, through the shared pointer drag session.
+	 *
+	 * The session waits for the pointer to travel before it calls anything a drag, so a click on a
+	 * header still only clicks; past that it floats a copy of what is moving under the pointer and
+	 * scrolls the viewport when the pointer nears its edge. The sheet only works out where the
+	 * copy would land and lets the rest make room for it.
+	 */
+	protected startMove(event: PointerEvent, axis: 'row' | 'column', index: number): void {
+		const allowed = axis === 'row' ? this.reorderableRows() : this.reorderableColumns();
+
+		if (event.button !== 0 || !allowed) {
+			return;
+		}
+
+		const source = this.moveElement(axis, index);
+
+		if (!source) {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+		this.#moveSession?.destroy();
+
+		const box = source.getBoundingClientRect();
+		const size = axis === 'row' ? box.height : box.width;
+
+		this.#moveSession = createPointerDragSession({
+			startEvent: event,
+			sourceEl: source,
+			ghostFactory: () => this.moveGhost(axis, index),
+			onStart: () => this.move.set({ axis, from: index, to: index, size, travel: 0 }),
+			onMove: (x, y) => this.trackMove(x, y),
+			onDrop: () => this.commitMove(),
+			onCancel: () => undefined,
+			onEnd: () => {
+				this.#moveSession = null;
+				this.move.set(null);
+				// The row that was under the pointer is now a different one; the next hover says which.
+				this.clearHover();
+			}
+		});
+	}
+
+	/** Whether a row or column is the one being dragged. */
+	protected isMoveSource(axis: 'row' | 'column', index: number): boolean {
+		const move = this.move();
+
+		return move?.axis === axis && move.from === index;
+	}
+
+	/**
+	 * Which way a row or column steps aside for the one being dragged: back towards the start
+	 * when the dragged one has passed it going forwards, forward when it has passed going back.
+	 */
+	protected moveShift(axis: 'row' | 'column', index: number): 'back' | 'forward' | null {
+		const move = this.move();
+
+		if (move?.axis !== axis || index === move.from) {
+			return null;
+		}
+
+		if (move.from < move.to && index > move.from && index <= move.to) {
+			return 'back';
+		}
+
+		if (move.to < move.from && index >= move.to && index < move.from) {
+			return 'forward';
+		}
+
+		return null;
+	}
+
+	/** The element a move drags: the row itself, or the header of the column. */
+	private moveElement(axis: 'row' | 'column', index: number): HTMLElement | null {
+		const selector = axis === 'row' ? `.hub-spreadsheet__row[aria-rowindex="${index + 1}"]` : `[data-header="${index}"]`;
+
+		return this.#host.nativeElement.querySelector<HTMLElement>(selector);
+	}
+
+	/**
+	 * Works out where the dragged row or column would land under the pointer.
+	 *
+	 * Read off the layout offsets rather than the boxes on screen: the rows that step aside are
+	 * translated, and measuring them where they are drawn would move the target as they move.
+	 */
+	private trackMove(x: number, y: number): void {
+		const move = this.move();
+		const table = this.#host.nativeElement.querySelector<HTMLElement>('.hub-spreadsheet__table');
+
+		if (!move || !table) {
+			return;
+		}
+
+		const frame = table.getBoundingClientRect();
+		const rtl = this.rtl();
+		const items =
+			move.axis === 'row'
+				? [...table.querySelectorAll<HTMLElement>('.hub-spreadsheet__row[aria-rowindex]')].map((row) => ({
+						index: Number(row.getAttribute('aria-rowindex')) - 1,
+						start: row.offsetTop,
+						size: row.offsetHeight
+					}))
+				: [...table.querySelectorAll<HTMLElement>('.hub-spreadsheet__header[data-header]')].map((cell) => ({
+						index: Number(cell.dataset['header']),
+						start: rtl ? table.offsetWidth - cell.offsetLeft - cell.offsetWidth : cell.offsetLeft,
+						size: cell.offsetWidth
+					}));
+		const pointer = move.axis === 'row' ? y - frame.top : rtl ? frame.right - x : x - frame.left;
+		let to = move.from;
+
+		for (const item of items) {
+			const middle = item.start + item.size / 2;
+
+			if (item.index < move.from && pointer < middle) {
+				to = Math.min(to, item.index);
+			} else if (item.index > move.from && pointer > middle) {
+				to = Math.max(to, item.index);
+			}
+		}
+
+		// How far the dragged one travels to reach its slot: the size of everything it passed.
+		const passed = items.filter((item) => (to > move.from ? item.index > move.from && item.index <= to : item.index >= to && item.index < move.from));
+		const travel = passed.reduce((sum, item) => sum + item.size, 0) * (to < move.from ? -1 : 1);
+
+		if (to !== move.to || travel !== move.travel) {
+			this.move.set({ ...move, to, travel });
+		}
+	}
+
+	/** Reports where a dragged row or column was dropped, if it moved at all. */
+	private commitMove(): void {
+		const move = this.move();
+
+		if (!move || move.from === move.to) {
+			return;
+		}
+
+		const { from, to } = move;
+
+		if (move.axis === 'row') {
+			const keys = this.keys();
+
+			this.rowMoved.emit({ from, to, key: keys[from], keys: moveRow(keys, from, to) });
+		} else {
+			const keys = this.columns().map((column) => column.key);
+
+			this.columnMoved.emit({ from, to, key: keys[from], keys: moveColumn(keys, from, to) });
+		}
+	}
+
+	/**
+	 * The copy that follows the pointer: the row, or the column's header and its drawn cells, in a
+	 * table of their own. Cloned nodes keep the sheet's style scoping, so they look like the sheet;
+	 * what is inherited from the host — font and surface — is copied across by hand.
+	 */
+	private moveGhost(axis: 'row' | 'column', index: number): HTMLElement {
+		const host = this.#host.nativeElement;
+		const source = host.querySelector<HTMLElement>('.hub-spreadsheet__table')!;
+		const table = source.cloneNode(false) as HTMLElement;
+		const style = getComputedStyle(host);
+
+		table.removeAttribute('role');
+		table.setAttribute('aria-hidden', 'true');
+		table.style.tableLayout = 'fixed';
+		table.style.font = style.font;
+		table.style.color = style.color;
+		table.style.background = surfaceOf(host);
+		table.style.opacity = '0.92';
+		table.style.boxShadow = '0 0.5rem 1.25rem rgb(0 0 0 / 18%)';
+
+		const clone = (cell: HTMLElement): HTMLElement => {
+			const copy = cell.cloneNode(true) as HTMLElement;
+
+			copy.style.inlineSize = `${cell.offsetWidth}px`;
+			copy.style.position = 'static';
+
+			return copy;
+		};
+
+		if (axis === 'row') {
+			const row = this.moveElement('row', index)!;
+			const copy = row.cloneNode(false) as HTMLElement;
+
+			row.querySelectorAll<HTMLElement>(':scope > td').forEach((cell) => copy.appendChild(clone(cell)));
+			table.appendChild(copy);
+		} else {
+			const header = document.createElement('tr');
+
+			header.appendChild(clone(this.moveElement('column', index)!));
+			table.appendChild(header);
+			host.querySelectorAll<HTMLElement>(`[data-cell$="-${index}"]`).forEach((cell) => {
+				const row = document.createElement('tr');
+
+				row.appendChild(clone(cell));
+				table.appendChild(row);
+			});
+		}
+
+		return table;
 	}
 
 	/**
@@ -2079,6 +2404,9 @@ export class HubSpreadsheetComponent<TRow> {
 	}
 
 	protected onMouseEnter(row: number, col: number): void {
+		this.hoveredRow.set(row);
+		this.hoveredColumn.set(col);
+
 		// Pointing grows its own rectangle, and the reader's selection is left exactly where it was.
 		if (this.pointing()) {
 			this.pointTarget.set({ row, col });
@@ -2123,22 +2451,6 @@ export class HubSpreadsheetComponent<TRow> {
 		};
 	}
 
-	protected onHeaderMouseDown(event: MouseEvent, col: number): void {
-		if (event.button !== 0 || !this.reorderableColumns()) {
-			return;
-		}
-
-		event.preventDefault();
-		this.movingColumn.set(col);
-		this.moveTargetColumn.set(col);
-	}
-
-	protected onHeaderMouseEnter(col: number): void {
-		if (this.movingColumn() !== null) {
-			this.moveTargetColumn.set(col);
-		}
-	}
-
 	/** Runs for every pointer move while something is being dragged, and only then. */
 	protected onPointerMove(event: MouseEvent): void {
 		const resizing = this.resizing;
@@ -2173,8 +2485,6 @@ export class HubSpreadsheetComponent<TRow> {
 
 			return;
 		}
-
-		this.commitColumnMove();
 
 		if (this.fillSource()) {
 			this.commitFill();
@@ -2380,32 +2690,6 @@ export class HubSpreadsheetComponent<TRow> {
 				this.measuredRowHeight.set(height);
 			}
 		}
-	}
-
-	/** Reports where a dragged column was dropped, if it moved at all. */
-	private commitColumnMove(): void {
-		const from = this.movingColumn();
-		const to = this.moveTargetColumn();
-
-		this.movingColumn.set(null);
-		this.moveTargetColumn.set(null);
-
-		if (from === null || to === null || from === to) {
-			return;
-		}
-
-		const keys = this.columns().map((column) => column.key);
-
-		this.columnMoved.emit({ from, to, key: keys[from], keys: moveColumn(keys, from, to) });
-	}
-
-	/** Whether a header is the one being dragged, or the place it would land. */
-	protected isMovingColumn(col: number): boolean {
-		return this.movingColumn() === col;
-	}
-
-	protected isMoveTarget(col: number): boolean {
-		return this.movingColumn() !== null && this.moveTargetColumn() === col && this.movingColumn() !== col;
 	}
 
 	/** Whether the fill handle belongs on this cell: the far corner of the selection. */
@@ -3275,4 +3559,20 @@ export class HubSpreadsheetComponent<TRow> {
 			this.cleared.emit(cells);
 		}
 	}
+}
+
+/**
+ * The first solid background behind an element, for a copy of it that floats outside its page.
+ * Cells are usually transparent over the sheet, and the sheet over whatever holds it.
+ */
+function surfaceOf(element: HTMLElement): string {
+	for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+		const background = getComputedStyle(node).backgroundColor;
+
+		if (background && background !== 'transparent' && !background.endsWith(', 0)')) {
+			return background;
+		}
+	}
+
+	return 'Canvas';
 }

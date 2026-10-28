@@ -372,7 +372,9 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `canUndo`            | `boolean`                                                   | `false`          | Whether `Ctrl+Z` has anything to ask for. The history belongs to the host.                                  |
 | `canRedo`            | `boolean`                                                   | `false`          | The same for `Ctrl+Shift+Z` and `Ctrl+Y`.                                                                   |
 | `resizableColumns`   | `boolean`                                                   | `false`          | Lets the reader drag a header's trailing edge.                                                              |
-| `reorderableColumns` | `boolean`                                                   | `false`          | Lets the reader drag a header to move its column.                                                           |
+| `reorderableColumns` | `boolean`                                                   | `false`          | Lets the reader drag a header to move its column. Hovering a column also shows a grip over its header.      |
+| `reorderableRows`    | `boolean`                                                   | `false`          | Lets the reader drag a row to move it, from a grip that shows over the row's leading edge on hover.         |
+| `rowHandleLabel`     | `string`                                                    | `''`             | The accessible name of the row grip. Your string: the sheet keeps no dictionary.                            |
 | `columnWidths`       | `Record<string, number>`                                    | `{}`             | Two-way. Widths keyed by alias, so one survives its column being moved.                                     |
 | `minColumnWidth`     | `number`                                                    | `48`             | The floor a drag cannot go below, in pixels.                                                                |
 
@@ -392,6 +394,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `undoRequested`         | `void`                          | `Ctrl+Z`. The sheet undoes nothing itself.                                                                              |
 | `redoRequested`         | `void`                          | `Ctrl+Shift+Z` or `Ctrl+Y`.                                                                                             |
 | `columnMoved`           | `{ from, to, key, keys }`       | A header was dropped. `keys` arrives already reordered.                                                                 |
+| `rowMoved`              | `{ from, to, key, keys }`       | A row was dropped. `keys` arrives already reordered.                                                                    |
 | `mergeRequested`        | `HubSpreadsheetMergeRequest`    | The reader asked to put a selection together. Carries what it swallows.                                                 |
 | `unmergeRequested`      | `readonly HubGridCoords[]`      | The reader asked to take apart the blocks their selection touches.                                                      |
 

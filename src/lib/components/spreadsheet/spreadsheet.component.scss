@@ -229,16 +229,6 @@ $frozen-divider-width: var(--hub-spreadsheet-frozen-divider-width, 2px);
 	font-size: #{$header-font-size};
 	font-weight: #{$header-font-weight};
 
-	&--moving {
-		opacity: #{$moving-opacity};
-	}
-
-	// The seam shows where the column would land, drawn inwards like every other marker here.
-	&--move-target {
-		outline: #{$cursor-width} solid #{$cursor-color};
-		outline-offset: calc(#{$cursor-width} * -1);
-	}
-
 	&--frozen {
 		inset-inline-start: 0;
 		// Above the frozen body cells, which are themselves above ordinary ones. The corner where
@@ -415,6 +405,157 @@ $coord-strip: $coord-badge + $coord-gap * 2;
 .hub-spreadsheet__toggle--end {
 	inset-inline-end: 0;
 	margin-inline-end: -0.55rem;
+}
+
+// Moving a row or a column. The one being dragged slides to the slot it would land in, faded and
+// tinted so it reads as the gap a floating copy of it will fill; the ones it has passed step aside
+// by its size. The transition only exists while something is moving, so when the drop clears the
+// shifts in the same render the owner reorders its list, nothing animates back.
+:host(.hub-spreadsheet--moving) {
+	.hub-spreadsheet__row,
+	.hub-spreadsheet__header,
+	.hub-spreadsheet__cell {
+		transition: translate 0.18s ease;
+
+		@media (prefers-reduced-motion: reduce) {
+			transition: none;
+		}
+	}
+}
+
+.hub-spreadsheet__move-source {
+	opacity: #{$moving-opacity};
+	background: #{$selection-bg};
+
+	> td {
+		background: #{$selection-bg};
+	}
+}
+
+.hub-spreadsheet__row {
+	&.hub-spreadsheet__move-source {
+		translate: 0 var(--move-travel, 0);
+	}
+
+	&.hub-spreadsheet__move-back {
+		translate: 0 calc(var(--move-size, 0px) * -1);
+	}
+
+	&.hub-spreadsheet__move-forward {
+		translate: 0 var(--move-size, 0px);
+	}
+}
+
+// A column steps sideways, so which way is "back" depends on the way the sheet runs.
+.hub-spreadsheet__header,
+.hub-spreadsheet__cell {
+	--move-sign: 1;
+
+	&.hub-spreadsheet__move-source {
+		translate: calc(var(--move-travel, 0px) * var(--move-sign)) 0;
+	}
+
+	&.hub-spreadsheet__move-back {
+		translate: calc(var(--move-size, 0px) * var(--move-sign) * -1) 0;
+	}
+
+	&.hub-spreadsheet__move-forward {
+		translate: calc(var(--move-size, 0px) * var(--move-sign)) 0;
+	}
+}
+
+:host(.hub-spreadsheet--rtl) {
+	.hub-spreadsheet__header,
+	.hub-spreadsheet__cell {
+		--move-sign: -1;
+	}
+}
+
+// The grips, floating over the frame like the expansion toggle — the same "do not make the owner
+// leave room for a column" choice. The button is the hit area along the edge it straddles; the
+// badge inside is what shows, drawn like a coordinate badge and arriving the same way.
+$move-grip-reach: 1.2rem;
+
+.hub-spreadsheet__move-grips {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	pointer-events: none;
+}
+
+.hub-spreadsheet__move-grip {
+	position: absolute;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border: 0;
+	background: none;
+	cursor: grab;
+	pointer-events: auto;
+
+	&--row {
+		inset-inline-start: 0;
+		inline-size: #{$move-grip-reach};
+		margin-inline-start: calc(#{$move-grip-reach} / -2);
+	}
+
+	&--column {
+		inset-block-start: 0;
+		block-size: #{$move-grip-reach};
+		margin-block-start: calc(#{$move-grip-reach} / -2);
+	}
+}
+
+.hub-spreadsheet__move-grip-badge {
+	position: relative;
+	border: #{$border-width} solid color-mix(in srgb, #{$cursor-color} 22%, #{$bg});
+	border-radius: 0.4rem;
+	background: color-mix(in srgb, #{$cursor-color} 9%, #{$bg});
+	box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+	color: #{$cursor-color};
+	animation: hub-spreadsheet-coord-in 0.18s ease both;
+	transition: background-color 0.15s ease;
+
+	.hub-spreadsheet__move-grip:hover & {
+		background: color-mix(in srgb, #{$cursor-color} 18%, #{$bg});
+	}
+
+	// Three dots, the grip every drag-to-reorder list in the product already uses, drawn rather
+	// than shipped as a glyph so the library stays icon-free.
+	&::before {
+		content: '';
+		position: absolute;
+		inset-block-start: 50%;
+		inset-inline-start: 50%;
+		inline-size: 0.2rem;
+		block-size: 0.2rem;
+		border-radius: 50%;
+		background: currentColor;
+		transform: translate(-50%, -50%);
+	}
+
+	.hub-spreadsheet__move-grip--row & {
+		inline-size: 100%;
+		block-size: min(1.7rem, calc(100% - 0.25rem));
+
+		&::before {
+			box-shadow:
+				0 -0.35rem 0 currentColor,
+				0 0.35rem 0 currentColor;
+		}
+	}
+
+	.hub-spreadsheet__move-grip--column & {
+		inline-size: 1.7rem;
+		block-size: 100%;
+
+		&::before {
+			box-shadow:
+				-0.35rem 0 0 currentColor,
+				0.35rem 0 0 currentColor;
+		}
+	}
 }
 
 // The column groups' toggles, over the host and above the frame's top edge: one small button per
