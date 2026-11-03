@@ -5,6 +5,9 @@
 -->
 <textarea class="hub-spreadsheet__sink" tabindex="-1" aria-hidden="true" readonly (paste)="onPaste($event)"></textarea>
 
+<!-- Read out, never seen: what the sheet did that only shows, such as a row moved from the keyboard. -->
+<div class="hub-spreadsheet__status" role="status" aria-live="polite" aria-atomic="true">{{ announcement() }}</div>
+
 <div class="hub-spreadsheet__viewport" #viewport (scroll)="onViewportScroll()">
 	<table
 		class="hub-spreadsheet__table"
@@ -177,9 +180,10 @@
 								@if (editing() && isActive(rowIndex, colIndex)) {
 									@if (editorFor(colIndex); as custom) {
 										<!-- The host supplied an editor for this column. It reports a value through
-									`commit`, or walks away through `cancel`; until it does one of the two the
-									editor stays open, so a picker may take as many clicks as it needs. -->
-										<div class="hub-spreadsheet__custom-editor">
+									`commit`, or walks away through `cancel`; the sheet also closes it on Escape,
+									on Tab and when the focus leaves it for anything but its own popup, so a
+									picker may still take as many clicks as it needs. -->
+										<div class="hub-spreadsheet__custom-editor" #suppliedEditor>
 											<ng-container
 												[ngTemplateOutlet]="custom.template"
 												[ngTemplateOutletContext]="editorContext(rowIndex, colIndex)"
@@ -190,7 +194,7 @@
 									opens with whatever the project wired instead of the native list. The
 									wrapper is the supplied editor's, because from the sheet's side this is
 									one: something it did not build, filling the cell. -->
-										<div class="hub-spreadsheet__custom-editor">
+										<div class="hub-spreadsheet__custom-editor" #suppliedEditor>
 											<ng-container [hubSpreadsheetControl]="hosted" />
 										</div>
 									} @else if (column.kind === 'select') {
@@ -261,9 +265,16 @@
 											[ngTemplateOutletContext]="cellContext(rowIndex, colIndex)"
 										/>
 									} @else {
-										<span class="hub-spreadsheet__value">{{ displayOf(cell, column) }}</span>
+										<!-- Text the reader left here unsaved is shown instead of the stored value,
+									ringed and explained by the cell's message, so it is not mistaken for gone. -->
+										@let unsaved = invalidDraftOf(rowIndex, colIndex);
+										<span class="hub-spreadsheet__value">{{ unsaved ?? displayOf(cell, column) }}</span>
 
-										@if ((cell.placeholder ?? column.placeholder) && !displayOf(cell, column)) {
+										@if (
+											unsaved === undefined &&
+											(cell.placeholder ?? column.placeholder) &&
+											!displayOf(cell, column)
+										) {
 											<span class="hub-spreadsheet__placeholder" aria-hidden="true">
 												{{ cell.placeholder ?? column.placeholder }}
 											</span>

@@ -10,6 +10,8 @@ export const locale = {
 		DELETE_COLUMNS: 'Delete {{ count }} column(s)',
 		MERGE_CELLS: 'Merge {{ count }} cells',
 		UNMERGE_CELLS: 'Split {{ count }} block(s)',
-		ROW_ACTIONS: 'Row and column actions'
+		ROW_ACTIONS: 'Row and column actions',
+		ROW_MOVED: 'Row moved to position {{ position }} of {{ total }}',
+		INVALID_DRAFT: 'Not saved: "{{ text }}" is not a valid value here'
 	}
 };

@@ -2,7 +2,7 @@ import { Component, ViewContainerRef, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { HubGridCoords, HubGridRange, HubGridSpan, provideHubTranslation } from 'ng-hub-ui-utils';
 import { locale as enLocale } from '../../assets/i18n/en';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	HubSpreadsheetCellRef,
 	HubSpreadsheetColumn,
@@ -42,6 +42,7 @@ function lines(): Line[] {
 			[rowKey]="rowKey"
 			[states]="states()"
 			[errors]="errors()"
+			[(invalidDrafts)]="invalidDrafts"
 			[readonly]="readonly()"
 			[structure]="structure()"
 			[frozenColumns]="frozenColumns()"
@@ -83,6 +84,7 @@ function lines(): Line[] {
 
 		<ng-template #rowDetail let-row let-index="index">
 			<span class="row-detail">{{ row.product }} · {{ index }}</span>
+			<input class="row-note" />
 		</ng-template>
 	`
 })
@@ -91,6 +93,7 @@ class HostComponent {
 	readonly readonly = signal(false);
 	readonly states = signal<Record<string, 'saving' | 'saved' | 'error'>>({});
 	readonly errors = signal<Record<string, string>>({});
+	readonly invalidDrafts = signal<Record<string, string>>({});
 	readonly structure = signal<HubSpreadsheetStructureOptions<Line>>({});
 	readonly frozenColumns = signal(0);
 	readonly frozenRows = signal(0);
@@ -2973,6 +2976,386 @@ describe('HubSpreadsheetComponent', () => {
 
 			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__editor')).toBeNull();
 			expect(host.cleared).toHaveLength(2);
+		});
+	});
+
+	describe('keys typed inside the open row', () => {
+		it('reach the field there, and leave the cell and the cursor alone', () => {
+			host.expandedRow.set('a');
+			fixture.detectChanges();
+			click(0, 0);
+
+			const note: HTMLInputElement = fixture.nativeElement.querySelector('.hub-spreadsheet__expansion .row-note');
+			const sent = ['x', 'Backspace', 'ArrowDown', 'Enter'].map((key) => {
+				const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+
+				note.dispatchEvent(event);
+				fixture.detectChanges();
+
+				return event;
+			});
+
+			expect(sent.map((event) => event.defaultPrevented)).toEqual([false, false, false, false]);
+			expect(editor()).toBeNull();
+			expect(cell(0, 0).getAttribute('tabindex')).toBe('0');
+		});
+	});
+
+	describe('text that is not a value, left behind', () => {
+		/** Opens the units of the first row, types `text` and walks away from it. */
+		function leaveWith(text: string, by: 'blur' | 'click'): void {
+			click(0, 1);
+			press('F2');
+			editor()!.value = text;
+			editor()!.dispatchEvent(new Event('input'));
+
+			if (by === 'blur') {
+				editor()!.dispatchEvent(new FocusEvent('blur'));
+			} else {
+				click(2, 0);
+			}
+
+			fixture.detectChanges();
+		}
+
+		it.each(['blur', 'click'] as const)('stays in the cell, marked, when the reader leaves by %s', (by) => {
+			leaveWith('7x', by);
+
+			expect(editor()).toBeNull();
+			expect(host.commits).toHaveLength(0);
+			expect(cell(0, 1).textContent).toContain('7x');
+			expect(cell(0, 1).classList.contains('hub-spreadsheet__cell--invalid')).toBe(true);
+			expect(cell(0, 1).getAttribute('aria-invalid')).toBe('true');
+			expect(host.invalidDrafts()).toEqual({ 'a\tunits': '7x' });
+		});
+
+		it('says in the cell message that it was not saved', () => {
+			leaveWith('7x', 'blur');
+			cell(0, 1).dispatchEvent(new MouseEvent('mouseenter'));
+
+			expect(document.body.querySelector('.hub-tooltip')?.textContent).toBe('Not saved: "7x" is not a valid value here');
+		});
+
+		it('comes back to be corrected, and goes once the cell takes a value', () => {
+			leaveWith('7x', 'blur');
+			click(0, 1);
+			press('F2');
+
+			expect(editor()!.value).toBe('7x');
+			expect(editor()!.getAttribute('aria-invalid')).toBe('true');
+
+			editor()!.value = '7';
+			editor()!.dispatchEvent(new Event('input'));
+			editor()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+			fixture.detectChanges();
+
+			expect(host.commits.at(-1)?.value).toBe(7);
+			expect(host.invalidDrafts()).toEqual({});
+		});
+
+		it('is given up with Escape, and the cell shows what it holds again', () => {
+			leaveWith('7x', 'blur');
+			click(0, 1);
+			press('F2');
+			editor()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+			fixture.detectChanges();
+
+			expect(host.invalidDrafts()).toEqual({});
+			expect(cell(0, 1).textContent).toContain('100');
+			expect(cell(0, 1).classList.contains('hub-spreadsheet__cell--invalid')).toBe(false);
+		});
+
+		it('goes when a paste writes over the cell', () => {
+			leaveWith('7x', 'blur');
+			click(0, 1);
+			fixture.nativeElement
+				.querySelector('.hub-spreadsheet__sink')
+				.dispatchEvent(clipboardEvent('paste', { 'text/plain': '8' }));
+			fixture.detectChanges();
+
+			expect(host.pastes.at(-1)?.cells[0]?.value).toBe(8);
+			expect(host.invalidDrafts()).toEqual({});
+		});
+
+		it('goes when its row leaves the sheet', () => {
+			leaveWith('7x', 'blur');
+			host.rows.update((rows) => rows.slice(1));
+			fixture.detectChanges();
+
+			expect(host.invalidDrafts()).toEqual({});
+		});
+
+		it('goes when its column leaves the sheet', () => {
+			leaveWith('7x', 'blur');
+			host.columns.update((columns) => columns.filter((column) => column.key !== 'units'));
+			fixture.detectChanges();
+
+			expect(host.invalidDrafts()).toEqual({});
+		});
+
+		it('stays while its row is only moved', () => {
+			leaveWith('7x', 'blur');
+			host.rows.update((rows) => [...rows].reverse());
+			fixture.detectChanges();
+
+			expect(host.invalidDrafts()).toEqual({ 'a\tunits': '7x' });
+		});
+	});
+
+	describe('moving a row from the keyboard', () => {
+		function status(): string {
+			return fixture.nativeElement.querySelector('.hub-spreadsheet__status').textContent;
+		}
+
+		it('moves the cursor row with Alt+Shift and an arrow, and says where it went', () => {
+			host.reorderableRows.set(true);
+			fixture.detectChanges();
+			click(0, 1);
+			press('ArrowDown', { altKey: true, shiftKey: true });
+
+			expect(host.rowMoves).toEqual([{ from: 0, to: 1, key: 'a', keys: ['b', 'a', 'c'] }]);
+			// The cursor goes with the row, so holding the keys keeps carrying the same one.
+			expect(cell(1, 1).getAttribute('tabindex')).toBe('0');
+			expect(editor()).toBeNull();
+			expect(status()).toBe('Row moved to position 2 of 3');
+
+			// This host has not applied the first move yet, and the second still carries the same row.
+			press('ArrowUp', { altKey: true, shiftKey: true });
+
+			expect(host.rowMoves.at(-1)).toEqual({ from: 1, to: 0, key: 'a', keys: ['a', 'b', 'c'] });
+			expect(status()).toBe('Row moved to position 1 of 3');
+		});
+
+		it('goes nowhere past the first row', () => {
+			host.reorderableRows.set(true);
+			fixture.detectChanges();
+			click(0, 0);
+			press('ArrowUp', { altKey: true, shiftKey: true });
+
+			expect(host.rowMoves).toHaveLength(0);
+			expect(cell(0, 0).getAttribute('tabindex')).toBe('0');
+		});
+
+		it('is not offered when rows cannot be moved', () => {
+			click(0, 0);
+			press('ArrowUp', { altKey: true, shiftKey: true });
+
+			expect(host.rowMoves).toHaveLength(0);
+		});
+
+		it('works the next move out from the order the owner applied', () => {
+			host.reorderableRows.set(true);
+			fixture.detectChanges();
+			click(0, 1);
+			press('ArrowDown', { altKey: true, shiftKey: true });
+			host.rows.update(([a, b, ...rest]) => [b, a, ...rest]);
+			fixture.detectChanges();
+			press('ArrowDown', { altKey: true, shiftKey: true });
+
+			expect(host.rowMoves.at(-1)).toEqual({ from: 1, to: 2, key: 'a', keys: ['b', 'c', 'a'] });
+		});
+	});
+
+	describe('an editor supplied by the host, closed like the sheet’s own', () => {
+		@Component({
+			standalone: true,
+			imports: [HubSpreadsheetComponent, HubSpreadsheetEditorDirective],
+			template: `
+				<hub-spreadsheet [rows]="rows()" [columns]="columns" [rowKey]="rowKey" (commit)="commits.push($event)">
+					<ng-template hubSpreadsheetEditor="product" let-value let-commit="commit" let-draft="draft">
+						<input
+							class="mine"
+							[value]="value"
+							(input)="draft($any($event.target).value)"
+							(keydown.enter)="commit('Elegido')"
+						/>
+						<span class="combo"></span>
+					</ng-template>
+				</hub-spreadsheet>
+				<button class="outside" type="button">Guardar</button>
+				<ul id="mine-list">
+					<li class="option" tabindex="-1">Tornillo</li>
+				</ul>
+			`
+		})
+		class SuppliedHost {
+			readonly rows = signal<Line[]>(lines());
+			readonly rowKey = (row: Line) => row.id;
+			readonly columns: HubSpreadsheetColumn<Line>[] = [
+				{ key: 'product', header: 'Producto', cell: (row) => ({ value: row.product, editable: true }) },
+				{ key: 'units', header: 'Unidades', kind: 'number', cell: (row) => ({ value: row.units, editable: true }) }
+			];
+			commits: HubSpreadsheetCommit<Line>[] = [];
+		}
+
+		let supplied: ComponentFixture<SuppliedHost>;
+
+		beforeEach(async () => {
+			await TestBed.resetTestingModule()
+				.configureTestingModule({ imports: [SuppliedHost], providers: [provideHubTranslation()] })
+				.compileComponents();
+
+			supplied = TestBed.createComponent(SuppliedHost);
+			// Attached, so the list named by id can be found the way a body-hung panel is.
+			document.body.appendChild(supplied.nativeElement);
+			supplied.detectChanges();
+		});
+
+		afterEach(() => supplied.nativeElement.remove());
+
+		function at(row: number, col: number): HTMLElement {
+			return supplied.nativeElement.querySelector(`[data-cell="${row}-${col}"]`);
+		}
+
+		function mine(): HTMLInputElement | null {
+			return supplied.nativeElement.querySelector('input.mine');
+		}
+
+		/** Opens the first product cell with a double click and hands back the editor's field. */
+		function openProduct(): HTMLInputElement {
+			at(0, 0).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			at(0, 0).dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+			at(0, 0).dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+			supplied.detectChanges();
+
+			return mine()!;
+		}
+
+		function keyOn(element: HTMLElement, key: string, init: Partial<KeyboardEventInit> = {}): KeyboardEvent {
+			const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+
+			element.dispatchEvent(event);
+			supplied.detectChanges();
+
+			return event;
+		}
+
+		function type(field: HTMLInputElement, text: string): void {
+			field.value = text;
+			field.dispatchEvent(new Event('input', { bubbles: true }));
+		}
+
+		it('leaves the characters and the arrows typed into it alone', () => {
+			const field = openProduct();
+
+			expect(keyOn(field, 'a').defaultPrevented).toBe(false);
+			expect(keyOn(field, 'ArrowLeft').defaultPrevented).toBe(false);
+			expect(mine()).not.toBeNull();
+			expect(at(0, 0).getAttribute('tabindex')).toBe('0');
+		});
+
+		it('moves down on the Enter that picks an answer, without opening the cell below', () => {
+			keyOn(openProduct(), 'Enter');
+
+			expect(supplied.componentInstance.commits.at(-1)?.value).toBe('Elegido');
+			expect(mine()).toBeNull();
+			expect(at(1, 0).getAttribute('tabindex')).toBe('0');
+		});
+
+		it('closes on Escape, keeping what the cell held', () => {
+			const field = openProduct();
+
+			type(field, 'Otra cosa');
+			keyOn(field, 'Escape');
+
+			expect(mine()).toBeNull();
+			expect(supplied.componentInstance.commits).toHaveLength(0);
+		});
+
+		it('lets an open list inside it have the first Escape', () => {
+			const field = openProduct();
+			const combo: HTMLElement = supplied.nativeElement.querySelector('.combo');
+
+			combo.setAttribute('aria-expanded', 'true');
+			// A control that writes its state straight away, so the sheet has to have looked first.
+			field.addEventListener('keydown', () => combo.setAttribute('aria-expanded', 'false'));
+
+			keyOn(field, 'Escape');
+			expect(mine()).not.toBeNull();
+
+			keyOn(field, 'Escape');
+			expect(mine()).toBeNull();
+		});
+
+		it('commits what it holds on Tab and moves sideways', () => {
+			const field = openProduct();
+
+			type(field, 'Tirafondo');
+
+			expect(keyOn(field, 'Tab').defaultPrevented).toBe(true);
+			expect(supplied.componentInstance.commits.at(-1)?.value).toBe('Tirafondo');
+			expect(mine()).toBeNull();
+			expect(at(0, 1).getAttribute('tabindex')).toBe('0');
+		});
+
+		it('closes as it was on Tab when it holds nothing', () => {
+			keyOn(openProduct(), 'Tab', { shiftKey: true });
+
+			expect(supplied.componentInstance.commits).toHaveLength(0);
+			expect(mine()).toBeNull();
+		});
+
+		it('closes with what it holds when the focus goes elsewhere', () => {
+			const field = openProduct();
+			const outside: HTMLElement = supplied.nativeElement.querySelector('button.outside');
+
+			type(field, 'Tirafondo');
+			field.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: outside }));
+			supplied.detectChanges();
+
+			expect(supplied.componentInstance.commits.at(-1)?.value).toBe('Tirafondo');
+			expect(mine()).toBeNull();
+		});
+
+		it('stays open while the focus is in the list one of its controls names', () => {
+			const field = openProduct();
+			const combo: HTMLElement = supplied.nativeElement.querySelector('.combo');
+			const option: HTMLElement = supplied.nativeElement.querySelector('#mine-list .option');
+
+			combo.setAttribute('aria-controls', 'mine-list');
+			field.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: option }));
+			supplied.detectChanges();
+
+			expect(mine()).not.toBeNull();
+			expect(supplied.componentInstance.commits).toHaveLength(0);
+		});
+
+		it('closes with what it holds when the focus leaves that list for somewhere else', () => {
+			const field = openProduct();
+			const combo: HTMLElement = supplied.nativeElement.querySelector('.combo');
+			const option: HTMLElement = supplied.nativeElement.querySelector('#mine-list .option');
+			const outside: HTMLElement = supplied.nativeElement.querySelector('button.outside');
+
+			combo.setAttribute('aria-controls', 'mine-list');
+			type(field, 'Tirafondo');
+			option.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: outside }));
+			supplied.detectChanges();
+
+			expect(supplied.componentInstance.commits.at(-1)?.value).toBe('Tirafondo');
+			expect(mine()).toBeNull();
+		});
+
+		it('is not handed the focus back to the cell by the clicks that opened it', async () => {
+			// Each click of the double click asks for the cell's focus, and the asks land after the
+			// render that opens the editor. Granted, they would pull the focus out of it and close it.
+			const cellFocus = vi.spyOn(at(0, 0), 'focus');
+
+			openProduct();
+			await supplied.whenStable();
+
+			expect(cellFocus).not.toHaveBeenCalled();
+			expect(document.activeElement).toBe(mine());
+		});
+
+		it('keeps what it held, not the character that opened it, when another cell is clicked', () => {
+			at(0, 0).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			supplied.detectChanges();
+			keyOn(supplied.nativeElement.querySelector('.hub-spreadsheet__table'), 'x');
+			at(2, 1).dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			supplied.detectChanges();
+
+			expect(supplied.componentInstance.commits).toHaveLength(0);
+			expect(mine()).toBeNull();
 		});
 	});
 });

@@ -1,5 +1,49 @@
 # Changelog
 
+## [22.9.0] - 2026-11-03
+
+### Added
+
+- **A row moves from the keyboard.** With `reorderableRows`, `Alt+Shift` with the up or down arrow
+  moves the cursor's row one place, reports it through `rowMoved` exactly as a drop does, and takes
+  the cursor along. A live region reads the new position out ("Row moved to position 2 of 3").
+  Not `Alt` alone, which already opens a cell's list with the down arrow. Until the owner applies a
+  move, the next one is worked out from the order that move asked for, so a held key or two quick
+  presses keep carrying the same row even when the owner saves before applying.
+- **`invalidDrafts`**, two-way, keyed like `errors`: the text the reader left in a cell without it
+  being a value the column can store. See the fix below.
+- **`draft` in the context of a `hubSpreadsheetEditor` template.** It holds a value without closing
+  the editor, for `Tab` and leaving the cell to commit. A picker that commits as soon as the reader
+  chooses does not need it.
+- Two labels in the sheet's dictionaries, in all eight languages: `ROW_MOVED` and `INVALID_DRAFT`.
+  Without a registered dictionary they are read in English rather than as keys.
+
+### Fixed
+
+- **Typing into a supplied editor or into the open row works.** The sheet read those keys as its
+  own: every character typed into a picker's search box was cancelled, and in the row opened through
+  `expansion` a letter or `Backspace` opened the active cell and the arrows moved the cursor instead
+  of the caret. A key that lands inside a `hubSpreadsheetEditor` template, a hosted control, the open
+  row or a field the host drew in a cell is now left to it.
+- **A supplied editor closes like the sheet's own.** `Escape` closes it as it was, unless a list
+  inside it was open (`aria-expanded="true"`), which Escape closes first. `Tab` commits what `draft`
+  holds and moves sideways. Focus leaving it does the same without moving, unless the focus went into
+  the popup one of its controls names through `aria-controls` or `aria-owns`, which is how
+  `hub-select`'s list on `<body>` keeps it open; focus leaving that popup for anywhere else closes
+  it the same way. The `Enter` that picks an answer no longer opens the
+  editor of the row below as well. The same holds for a control hosted through
+  `provideHubSpreadsheetControls`.
+- **Text a cell cannot store is no longer lost when the reader leaves it.** With `Enter` or `Tab`
+  the editor already stayed open and marked; clicking elsewhere, or a Save button outside the sheet,
+  dropped `7x` from a figure column and kept the old value without a word. The cell now keeps
+  showing the text, ringed as invalid, with a tooltip saying it was not saved, and `invalidDrafts`
+  tells the host. Opening the cell brings the text back to be corrected, `Escape` gives it up, and a
+  paste, a fill or a clear over the cell drops it. So does its row or its column leaving the sheet,
+  deleted, filtered out or paged away: a draft for a cell nobody can see would hold a save back for
+  good.
+- Clicking another cell while a supplied editor or a hosted list was open no longer commits the
+  character that opened it.
+
 ## [22.8.0] - 2026-10-28
 
 ### Added

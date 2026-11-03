@@ -51,9 +51,12 @@ import {
 	HUB_FIELD_FEEDBACK,
 	HUB_TRANSLATION_PREFIX,
 	HubTooltipDirective,
+	HubTranslationService,
+	interpolateString,
 	PointerDragSession,
 	TranslatePipe
 } from 'ng-hub-ui-utils';
+import { locale as englishLabels } from '../../assets/i18n/en';
 import { displayValue, isTruthy, parseForColumn } from '../../columns/cell-values';
 import { HubSpreadsheetEditorContext, HubSpreadsheetEditorDirective } from './spreadsheet-editor.directive';
 import { HubSpreadsheetCellContext, HubSpreadsheetCellDirective } from './spreadsheet-cell.directive';
@@ -174,6 +177,18 @@ export class HubSpreadsheetComponent<TRow> {
 		// A sheet removed mid-drag would leave its floating copy on the page.
 		this.#destroyRef.onDestroy(() => this.#moveSession?.destroy());
 
+		// Whether a supplied editor had a list open when Escape went down, read on the way in: by the
+		// time the key bubbles back, the list it has just closed may already say it is closed.
+		const host = this.#host.nativeElement;
+		const notePopup = (event: KeyboardEvent) => {
+			const editor = event.target instanceof Element ? event.target.closest('.hub-spreadsheet__custom-editor') : null;
+
+			this.#popupWasOpen = event.key === 'Escape' && !!editor?.querySelector('[aria-expanded="true"]');
+		};
+
+		host.addEventListener('keydown', notePopup, true);
+		this.#destroyRef.onDestroy(() => host.removeEventListener('keydown', notePopup, true));
+
 		afterNextRender(
 			() => {
 				// The list of suggestions hangs in the window rather than in the sheet, which is how
@@ -241,6 +256,17 @@ export class HubSpreadsheetComponent<TRow> {
 	 * colour and the message opens in a tooltip on hover or when the keyboard lands on it.
 	 */
 	readonly errors = input<Record<string, string>>({});
+	/**
+	 * Text the reader typed into a cell and left without it being a value the column can store,
+	 * keyed the same way as {@link errors}.
+	 *
+	 * Two-way, and written by the sheet. A reader who leaves a cell — clicking elsewhere, pressing a
+	 * button outside the sheet — with `7x` in a figure column has not changed the stored value, and
+	 * dropping the text would let a save go through as if they had typed nothing. So the cell keeps
+	 * showing it, ringed and with a message, and the host hears about it here. The entry goes when the
+	 * reader corrects the cell, gives it up with `Escape`, or writes over it.
+	 */
+	readonly invalidDrafts = model<Record<string, string>>({});
 	/** The character this reader types decimals with. */
 	readonly decimalMark = input<',' | '.'>(',');
 	/** What an empty sheet says. */
@@ -312,6 +338,9 @@ export class HubSpreadsheetComponent<TRow> {
 	 * Off unless asked for, like every other structural change. Drawn as a floating handle over
 	 * the frame's leading edge — see {@link rowHandles} — rather than as a column the owner has
 	 * to make room for, the same choice {@link expandToggle} already makes for a row's expansion.
+	 *
+	 * From the keyboard, `Alt+Shift` with the up or down arrow moves the cursor's row one place and
+	 * says where it went. Not `Alt` alone: `Alt` with the down arrow already opens a cell's list.
 	 */
 	readonly reorderableRows = input(false, { transform: booleanAttribute });
 	/** The accessible name of a row's drag handle, the owner's string — the sheet keeps no dictionary. */
@@ -570,6 +599,15 @@ export class HubSpreadsheetComponent<TRow> {
 	private readonly seed = signal<string | undefined>(undefined);
 	/** The editor holds text that does not read as a value, so it stays open and marked. */
 	protected readonly invalid = signal(false);
+	/** What a supplied editor handed over through `draft`, for `Tab` or leaving to commit. */
+	#held: { readonly value: HubSpreadsheetValue } | null = null;
+	/** Whether the Escape now travelling found a list open inside a supplied editor. */
+	#popupWasOpen = false;
+	/** The last keyboard move: the order it was reported against, and the order it asked for. */
+	#pendingMove: { readonly against: readonly string[]; readonly order: string[] } | null = null;
+	/** What the live region last said, for what is otherwise only seen, such as a row moved. */
+	protected readonly announcement = signal('');
+	readonly #translations = inject(HubTranslationService, { optional: true });
 	private dragging = false;
 	/** Whether the pointer visited another cell during this press, which makes it a drag. */
 	private dragMoved = false;
@@ -623,6 +661,28 @@ export class HubSpreadsheetComponent<TRow> {
 	private readonly viewport = viewChild<ElementRef<HTMLElement>>('viewport');
 	/** The coloured copy of the draft drawn behind the editor while a formula is being written. */
 	private readonly tokens = viewChild<ElementRef<HTMLElement>>('tokens');
+	/** The wrapper around a supplied editor or a hosted control, while one is open. */
+	private readonly suppliedEditor = viewChild<ElementRef<HTMLElement>>('suppliedEditor');
+
+	/**
+	 * Listens for the focus leaving a supplied editor, on the document and only while one is open.
+	 *
+	 * A popup hanging on `<body>` is outside the cell, so the focus leaving it never bubbles through
+	 * the wrapper, and a listener there would leave the editor open for good.
+	 */
+	private readonly watchSuppliedEditor = effect((onCleanup) => {
+		const editor = this.suppliedEditor()?.nativeElement;
+
+		if (!editor) {
+			return;
+		}
+
+		const doc = editor.ownerDocument;
+		const onFocusOut = (event: FocusEvent) => this.onSuppliedEditorFocusOut(event, editor);
+
+		doc.addEventListener('focusout', onFocusOut);
+		onCleanup(() => doc.removeEventListener('focusout', onFocusOut));
+	});
 
 	private readonly scrollTop = signal(0);
 	private readonly viewportHeight = signal(0);
@@ -1786,6 +1846,39 @@ export class HubSpreadsheetComponent<TRow> {
 	});
 
 	/**
+	 * Drops the unsaved text of a cell whose row or column has left the sheet.
+	 *
+	 * That cell can no longer be shown or corrected, and a draft kept for it would hold back, for
+	 * good, a save that waits on {@link invalidDrafts} being empty.
+	 */
+	private readonly pruneDrafts = effect(() => {
+		const keys = this.keys();
+		const columns = this.columns();
+
+		untracked(() => {
+			const entries = Object.entries(this.invalidDrafts());
+
+			// The usual case, and the one a reload of ten thousand rows must not pay for.
+			if (!entries.length) {
+				return;
+			}
+
+			const rows = new Set(keys);
+			const aliases = new Set(columns.map((column) => column.key));
+			// Split at the last tab: an alias is an identifier, while a row key may be any text.
+			const kept = entries.filter(([key]) => {
+				const tab = key.lastIndexOf('\t');
+
+				return rows.has(key.slice(0, tab)) && aliases.has(key.slice(tab + 1));
+			});
+
+			if (kept.length < entries.length) {
+				this.invalidDrafts.set(Object.fromEntries(kept));
+			}
+		});
+	});
+
+	/**
 	 * Keeps the viewport's measurements up to date while virtualising.
 	 *
 	 * In the read phase, like the frozen offsets: reading layout while the browser is writing one
@@ -1988,9 +2081,20 @@ export class HubSpreadsheetComponent<TRow> {
 		return this.states()[this.cellKey(row, col)];
 	}
 
-	/** The validation message the host attached to a cell, if any. */
+	/**
+	 * The message a cell is ringed with: the sheet's own when it holds text that was not saved,
+	 * which is the more urgent of the two, and otherwise the host's.
+	 */
 	protected errorOf(row: number, col: number): string | undefined {
-		return this.errors()[this.cellKey(row, col)];
+		const key = this.cellKey(row, col);
+		const text = this.invalidDrafts()[key];
+
+		return text === undefined ? this.errors()[key] : this.say('INVALID_DRAFT', { text });
+	}
+
+	/** The text a cell was left holding that is not a value for its column, if any. */
+	protected invalidDraftOf(row: number, col: number): string | undefined {
+		return this.invalidDrafts()[this.cellKey(row, col)];
 	}
 
 	/** How a cell is addressed in the `states` and `errors` maps. */
@@ -2165,12 +2269,23 @@ export class HubSpreadsheetComponent<TRow> {
 			row: this.rows()[row],
 			column: this.columns()[col],
 			commit: (value: HubSpreadsheetValue) => this.commitFromEditor(value),
-			cancel: () => this.cancelEdit()
+			cancel: () => this.cancelEdit(),
+			draft: (value: HubSpreadsheetValue) => {
+				this.#held = { value };
+			}
 		};
 	}
 
-	/** Accepts a value a custom editor or a built-in list reported, and moves on as Enter would. */
-	protected commitFromEditor(value: HubSpreadsheetValue): void {
+	/**
+	 * Accepts a value a custom editor or a built-in list reported, and moves on as Enter would.
+	 *
+	 * @param step Where the cursor goes next; null leaves it, and the focus, where they are — the
+	 *             reader has gone somewhere else and is not to be pulled back.
+	 */
+	protected commitFromEditor(
+		value: HubSpreadsheetValue,
+		step: { row: number; col: number } | null = { row: 1, col: 0 }
+	): void {
 		const active = this.active();
 
 		if (!active) {
@@ -2182,12 +2297,15 @@ export class HubSpreadsheetComponent<TRow> {
 
 		this.editing.set(false);
 		this.invalid.set(false);
+		this.forgetDrafts([active]);
 
 		if (value !== cell.value) {
 			this.commit.emit({ coords: active, row: this.rows()[active.row], column, cell, value });
 		}
 
-		this.moveTo(moveGridFocus(active, { row: 1, col: 0 }, this.bounds(), { horizontal: 'continuous' }), false);
+		if (step) {
+			this.moveTo(moveGridFocus(active, step, this.bounds(), { horizontal: 'continuous' }), false);
+		}
 	}
 
 	/**
@@ -2250,8 +2368,29 @@ export class HubSpreadsheetComponent<TRow> {
 			return;
 		}
 
+		// A key typed into something the host drew inside the sheet is that thing's. Read as the
+		// grid's, every character would be cancelled and every arrow would move the cursor, not the caret.
+		const owner = this.keyOwner(event);
+
+		if (owner === 'editor') {
+			this.onSuppliedEditorKeydown(event);
+
+			return;
+		}
+
+		if (owner === 'host') {
+			return;
+		}
+
 		if (this.editing()) {
 			this.catchUp(event);
+
+			return;
+		}
+
+		if (this.reorderableRows() && isRowMoveKey(event)) {
+			event.preventDefault();
+			this.moveRowBy(active, event.key === 'ArrowUp' ? -1 : 1);
 
 			return;
 		}
@@ -2360,9 +2499,7 @@ export class HubSpreadsheetComponent<TRow> {
 			return;
 		}
 
-		if (this.editing()) {
-			this.finishEdit(null);
-		}
+		this.leaveEdit();
 
 		this.dragging = true;
 		this.dragMoved = false;
@@ -2809,6 +2946,7 @@ export class HubSpreadsheetComponent<TRow> {
 
 		this.anchor.set({ row: target.top, col: target.left });
 		this.active.set({ row: target.bottom, col: target.right });
+		this.forgetDrafts(gridRangeCells(target));
 		this.filled.emit({ cells, range: target, skipped, rejected: 0 });
 		this.announceSelection();
 	}
@@ -3090,9 +3228,193 @@ export class HubSpreadsheetComponent<TRow> {
 
 	/** Leaving the editor keeps what was typed, as clicking away does in a spreadsheet. */
 	protected onEditorBlur(): void {
-		if (this.editing() && !this.finishEdit(null)) {
-			this.cancelEdit();
+		this.leaveEdit();
+	}
+
+	/**
+	 * Closes a supplied editor once the focus leaves it for somewhere else, keeping what it held.
+	 *
+	 * The editor is itself and the popups its controls name through `aria-controls` or `aria-owns`:
+	 * a list hanging on `<body>` is still the editor, and closing on it would lose the very click that
+	 * picks the answer. Focus leaving that list counts as much as focus leaving the cell.
+	 */
+	private onSuppliedEditorFocusOut(event: FocusEvent, editor: HTMLElement): void {
+		const parts = [editor, ...popupsOf(editor)];
+		const within = (node: EventTarget | null) => node instanceof Node && parts.some((part) => part.contains(node));
+
+		if (this.editing() && within(event.target) && !within(event.relatedTarget)) {
+			this.leaveSuppliedEditor(null);
 		}
+	}
+
+	/**
+	 * Whose a keystroke is: the supplied editor's, the host's (an open row, or a field the host drew
+	 * in a cell), or the grid's.
+	 *
+	 * Asked of the element the key landed on, and only up to this sheet: a sheet drawn inside
+	 * another one's open row is inside an expansion too, and must still answer its own keys.
+	 */
+	private keyOwner(event: KeyboardEvent): 'grid' | 'editor' | 'host' {
+		const table = event.currentTarget as HTMLElement;
+		const target = event.target;
+
+		if (!(target instanceof HTMLElement) || target === table) {
+			return 'grid';
+		}
+
+		const inside = (selector: string) => {
+			const found = target.closest(selector);
+
+			return !!found && !found.contains(table);
+		};
+
+		// The open row first: a sheet inside it has supplied editors of its own, and they are not ours.
+		if (inside('.hub-spreadsheet__expansion')) {
+			return 'host';
+		}
+
+		if (inside('.hub-spreadsheet__custom-editor')) {
+			return 'editor';
+		}
+
+		const typing = target.isContentEditable || target.matches('input, textarea, select');
+
+		return typing && !target.matches('.hub-spreadsheet__editor, .hub-spreadsheet__check') ? 'host' : 'grid';
+	}
+
+	/**
+	 * The two keys a supplied editor leaves to the sheet, unless it used them itself.
+	 *
+	 * `Escape` closes it as it was, after a list open inside it has had its own Escape. `Tab` commits
+	 * what it holds and moves sideways. `Enter` stays the editor's: the sheet cannot tell the Enter
+	 * that picks an option from one that confirms, and taken as the grid's it opens the cell below.
+	 */
+	private onSuppliedEditorKeydown(event: KeyboardEvent): void {
+		if (!this.editing() || event.isComposing || event.keyCode === 229) {
+			return;
+		}
+
+		if (event.key === 'Escape' && !this.#popupWasOpen) {
+			event.preventDefault();
+			this.cancelEdit();
+		} else if (event.key === 'Tab' && !event.defaultPrevented) {
+			event.preventDefault();
+			this.leaveSuppliedEditor({ row: 0, col: event.shiftKey ? -1 : 1 });
+		}
+	}
+
+	/**
+	 * Closes a supplied editor with what it holds through `draft`, or as it was when it holds nothing.
+	 *
+	 * @param step Where the cursor goes next; null when the reader has gone somewhere else.
+	 */
+	private leaveSuppliedEditor(step: { row: number; col: number } | null): void {
+		const active = this.active();
+
+		if (active) {
+			this.commitFromEditor(this.#held ? this.#held.value : this.grid()[active.row][active.col].value, step);
+		}
+	}
+
+	/**
+	 * Closes the editor because the reader went somewhere else.
+	 *
+	 * A value is committed as Enter would commit it. Text the column cannot store is kept as an invalid
+	 * draft — ringed, with a message — and the host hears about it through {@link invalidDrafts}. Only
+	 * what the reader wrote, though: a cell that already held something unreadable and was left
+	 * untouched closes quietly.
+	 */
+	private leaveEdit(): void {
+		const active = this.active();
+
+		if (!this.editing() || !active) {
+			return;
+		}
+
+		if (this.editorFor(active.col) || this.hostedControl(active.row, active.col)) {
+			this.leaveSuppliedEditor(null);
+
+			return;
+		}
+
+		if (this.finishEdit(null)) {
+			return;
+		}
+
+		const text = this.draft();
+
+		if (text !== this.editableTextOf(this.grid()[active.row][active.col])) {
+			this.invalidDrafts.update((drafts) => ({ ...drafts, [this.cellKey(active.row, active.col)]: text }));
+		}
+
+		this.editing.set(false);
+		this.invalid.set(false);
+	}
+
+	/** Drops the invalid drafts of cells that have just been written or given up. */
+	private forgetDrafts(cells: Iterable<HubGridCoords>): void {
+		const drafts = this.invalidDrafts();
+
+		// The usual case, and the one a paste over ten thousand cells must not pay for.
+		if (!Object.keys(drafts).length) {
+			return;
+		}
+
+		const next = { ...drafts };
+
+		for (const { row, col } of cells) {
+			delete next[this.cellKey(row, col)];
+		}
+
+		if (Object.keys(next).length !== Object.keys(drafts).length) {
+			this.invalidDrafts.set(next);
+		}
+	}
+
+	/**
+	 * Moves the cursor's row one place up or down, as dropping its grip there would, and says so.
+	 *
+	 * The cursor goes with the row, so holding the keys keeps carrying the same one. It lands where
+	 * the row will be once the owner applies the move, which is the same place whether the owner does
+	 * it at once or after a round trip.
+	 *
+	 * Until the owner applies a move, the next one is worked out from the order that move asked for.
+	 * A held key, or two quick presses, outrun an owner that saves before applying, and read against
+	 * the old order the second step would carry the neighbour that has just stepped aside.
+	 */
+	private moveRowBy(active: HubGridCoords, step: -1 | 1): void {
+		const from = active.row;
+		const to = from + step;
+		const total = this.bounds().rows;
+
+		if (to < 0 || to >= total) {
+			return;
+		}
+
+		const current = this.keys();
+		const pending = this.#pendingMove;
+		const keys = pending && pending.against === current ? pending.order : current;
+		const order = moveRow(keys, from, to);
+
+		this.#pendingMove = { against: current, order };
+		this.rowMoved.emit({ from, to, key: keys[from], keys: order });
+		this.moveTo({ row: to, col: active.col }, false);
+		this.announce(this.say('ROW_MOVED', { position: to + 1, total }));
+	}
+
+	/**
+	 * One of the sheet's own sentences, in the reader's language when the project registered the
+	 * dictionaries, and in English when it did not — a key read out by a screen reader says nothing.
+	 */
+	private say(key: keyof typeof englishLabels.data, params: Record<string, unknown>): string {
+		const text: unknown = this.#translations?.getTranslation(`HUBUI.SPREADSHEET.${key}`);
+
+		return interpolateString(typeof text === 'string' ? text : englishLabels.data[key], params);
+	}
+
+	/** Puts a sentence in the live region, nudged when it repeats so it is read out again. */
+	private announce(message: string): void {
+		this.announcement.update((said) => (said === message ? `${message}\u00a0` : message));
 	}
 
 	protected trackRow = (index: number): string => this.keys()[index] ?? String(index);
@@ -3146,12 +3468,10 @@ export class HubSpreadsheetComponent<TRow> {
 			col: Math.min(this.bounds().cols - 1, at.col + width - 1)
 		});
 
-		this.pasted.emit({
-			cells,
-			range: range ?? { top: at.row, bottom: at.row, left: at.col, right: at.col },
-			skipped,
-			rejected
-		});
+		const covered = range ?? { top: at.row, bottom: at.row, left: at.col, right: at.col };
+
+		this.forgetDrafts(gridRangeCells(covered));
+		this.pasted.emit({ cells, range: covered, skipped, rejected });
 		this.announceSelection();
 	}
 
@@ -3204,11 +3524,14 @@ export class HubSpreadsheetComponent<TRow> {
 		// does when you type at it; in a date field it lands nowhere, because a letter is not a
 		// date and keeping it would commit rubbish on the way out.
 		const opener = kind === 'select' ? this.optionStartingWith(column, seed) : undefined;
+		// Text left here unsaved comes back to be corrected, marked as it was; typing still replaces it.
+		const left = seed === undefined ? this.invalidDraftOf(active.row, active.col) : undefined;
 
 		this.anchor.set(null);
 		this.seed.set(seed);
-		this.draft.set(this.openingText(cell, kind, seed, opener));
-		this.invalid.set(false);
+		this.#held = null;
+		this.draft.set(left ?? this.openingText(cell, kind, seed, opener));
+		this.invalid.set(left !== undefined);
 		this.editing.set(true);
 
 		// The cell is already drawn — it is the one that was clicked — so its rectangle can be read
@@ -3318,6 +3641,7 @@ export class HubSpreadsheetComponent<TRow> {
 
 		this.editing.set(false);
 		this.invalid.set(false);
+		this.forgetDrafts([active]);
 
 		if (value !== cell.value) {
 			this.commit.emit({ coords: active, row: this.rows()[active.row], column, cell, value });
@@ -3332,9 +3656,17 @@ export class HubSpreadsheetComponent<TRow> {
 		return true;
 	}
 
+	/** Closes the editor and keeps what the cell held, giving up any text it was left with. */
 	private cancelEdit(): void {
+		const active = this.active();
+
 		this.editing.set(false);
 		this.invalid.set(false);
+
+		if (active) {
+			this.forgetDrafts([active]);
+		}
+
 		this.focusActive();
 	}
 
@@ -3423,7 +3755,9 @@ export class HubSpreadsheetComponent<TRow> {
 			() => {
 				const active = this.active();
 
-				if (active) {
+				// An editor opened since this was asked for has the keyboard now. The clicks of a double
+				// click each ask, and taking the focus back from the editor they opened would close it.
+				if (active && !this.editing()) {
 					this.#host.nativeElement
 						.querySelector<HTMLElement>(`[data-cell="${active.row}-${active.col}"]`)
 						?.focus({ preventScroll: false });
@@ -3553,14 +3887,41 @@ export class HubSpreadsheetComponent<TRow> {
 			return;
 		}
 
-		const cells = gridSelectionCells(ranges)
+		const covered = gridSelectionCells(ranges);
+		const cells = covered
 			.filter(({ row, col }) => this.canEdit(row, col) && this.grid()[row][col].value !== null)
 			.map((coords) => this.refAt(coords));
+
+		this.forgetDrafts(covered);
 
 		if (cells.length) {
 			this.cleared.emit(cells);
 		}
 	}
+}
+
+/** `Alt+Shift` with the up or down arrow, the keyboard's way of moving a row. */
+function isRowMoveKey(event: KeyboardEvent): boolean {
+	return (
+		event.altKey &&
+		event.shiftKey &&
+		!event.ctrlKey &&
+		!event.metaKey &&
+		(event.key === 'ArrowUp' || event.key === 'ArrowDown')
+	);
+}
+
+/**
+ * The popups a supplied editor's controls name as theirs, the way a combobox names its list.
+ * Looked up by id in the whole document, since a list hanging on `<body>` is nowhere near the cell.
+ */
+function popupsOf(editor: HTMLElement): HTMLElement[] {
+	return [...editor.querySelectorAll('[aria-controls], [aria-owns]')]
+		.flatMap((control) =>
+			`${control.getAttribute('aria-controls') ?? ''} ${control.getAttribute('aria-owns') ?? ''}`.split(/\s+/)
+		)
+		.map((id) => (id ? editor.ownerDocument.getElementById(id) : null))
+		.filter((popup): popup is HTMLElement => !!popup);
 }
 
 /**

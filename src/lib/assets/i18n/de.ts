@@ -10,6 +10,8 @@ export const locale = {
 		DELETE_COLUMNS: '{{ count }} Spalte(n) löschen',
 		MERGE_CELLS: '{{ count }} Zellen verbinden',
 		UNMERGE_CELLS: '{{ count }} Block/Blöcke trennen',
-		ROW_ACTIONS: 'Aktionen für Zeilen und Spalten'
+		ROW_ACTIONS: 'Aktionen für Zeilen und Spalten',
+		ROW_MOVED: 'Zeile an Position {{ position }} von {{ total }} verschoben',
+		INVALID_DRAFT: 'Nicht gespeichert: „{{ text }}“ ist hier kein gültiger Wert'
 	}
 };

@@ -22,6 +22,14 @@ export interface HubSpreadsheetEditorContext<TRow> {
 	readonly commit: (value: HubSpreadsheetValue) => void;
 	/** Closes the editor and keeps what the cell held. */
 	readonly cancel: () => void;
+	/**
+	 * Holds a value without closing the editor.
+	 *
+	 * For an editor with something to confirm rather than something to pick: `Tab` and leaving the
+	 * cell commit the last value held, and `Escape` throws it away. A picker that commits the moment
+	 * the reader chooses has no use for it.
+	 */
+	readonly draft: (value: HubSpreadsheetValue) => void;
 }
 
 /**
@@ -39,9 +47,14 @@ export interface HubSpreadsheetEditorContext<TRow> {
  * </hub-spreadsheet>
  * ```
  *
- * The template is responsible for calling `commit` or `cancel`. Until it does, the editor stays
- * open — which is what lets a picker take as many clicks as it needs without the sheet deciding
- * the reader has finished.
+ * The template reports a value through `commit`, or walks away through `cancel`. The sheet closes it
+ * too, the way it closes its own editor: `Escape` closes it as it was, unless a list inside it was
+ * open (`aria-expanded="true"`), which Escape closes first; `Tab` commits what `draft` holds and
+ * moves sideways; and focus going anywhere else does the same without moving. Focus that stays in
+ * the editor, or goes into the popup one of its controls names through `aria-controls` or
+ * `aria-owns` — a list hanging on `<body>`, as `hub-select` draws it — keeps it open, so a picker
+ * still takes as many clicks as it needs. Every other key is the editor's: the grid neither moves
+ * nor types on it, `Enter` included.
  */
 @Directive({
 	selector: '[hubSpreadsheetEditor]',

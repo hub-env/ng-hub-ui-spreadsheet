@@ -62,6 +62,7 @@ This library is part of the **ng-hub-ui** ecosystem:
 - [➕ Adding and Removing Rows and Columns](#-adding-and-removing-rows-and-columns)
 - [📖 API Reference](#-api-reference)
 - [Files](#files)
+- [Text a cell cannot store](#text-a-cell-cannot-store)
 - [🎨 Styling](#-styling)
 - [♿ Accessibility](#-accessibility)
 - [🤝 Contributing](#-contributing)
@@ -265,7 +266,9 @@ For a cell that opens the row's own detail, put the detail in an `expansion` tem
 | Any printable character       | Replace the cell and start editing                                    |
 | `F2`, `Enter`                 | Edit, keeping the value                                               |
 | `Alt` + `Down`                | Open a cell that holds a list or a date                               |
+| `Alt+Shift` + `Up` / `Down`   | Move the row one place, with `reorderableRows`, and say where it went |
 | `Enter` / `Tab` while editing | Commit and move down / right                                          |
+| `Escape` / `Tab` in an editor | Close it as it was / commit what it holds and move right              |
 | `Escape`                      | Revert the edit, then clear the selection                             |
 | `Delete` / `Backspace`        | Empty one cell into its editor, or every editable cell of a selection |
 | `Ctrl+C` / `X` / `V`          | Copy, cut, paste                                                      |
@@ -349,6 +352,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `rowKey`             | `(row: TRow) => string`                                     | —                | **Required.** A stable name per row.                                                                        |
 | `states`             | `Record<string, HubSpreadsheetCellState>`                   | `{}`             | Save state per cell, keyed `` `${rowKey}\t${columnKey}` ``.                                                 |
 | `errors`             | `Record<string, string>`                                    | `{}`             | A validation message per cell, keyed the same way. Rings the cell and opens in a tooltip on hover or focus. |
+| `invalidDrafts`      | `Record<string, string>`                                    | `{}`             | Two-way. Text left in a cell that the column cannot store, keyed the same way. See below.                   |
 | `decimalMark`        | `',' \| '.'`                                                | `','`            | How this reader types decimals.                                                                             |
 | `emptyText`          | `string`                                                    | `''`             | What an empty sheet says.                                                                                   |
 | `pageSize`           | `number`                                                    | `10`             | Rows travelled by `Page Up` and `Page Down`.                                                                |
@@ -395,6 +399,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `redoRequested`         | `void`                          | `Ctrl+Shift+Z` or `Ctrl+Y`.                                                                                             |
 | `columnMoved`           | `{ from, to, key, keys }`       | A header was dropped. `keys` arrives already reordered.                                                                 |
 | `rowMoved`              | `{ from, to, key, keys }`       | A row was dropped. `keys` arrives already reordered.                                                                    |
+| `invalidDraftsChange`   | `Record<string, string>`        | The reader left a cell with text it cannot store, or corrected, gave up or wrote over one.                              |
 | `mergeRequested`        | `HubSpreadsheetMergeRequest`    | The reader asked to put a selection together. Carries what it swallows.                                                 |
 | `unmergeRequested`      | `readonly HubGridCoords[]`      | The reader asked to take apart the blocks their selection touches.                                                      |
 
@@ -544,6 +549,23 @@ cell with, which belongs in a picker's search box.
 </hub-spreadsheet>
 ```
 
+The sheet closes your editor the way it closes its own. `Escape` closes it as it was, after a list
+open inside it (`aria-expanded="true"`) has had that Escape for itself. `Tab` commits and moves
+right, and focus leaving it commits without moving — except into the popup one of its controls names
+through `aria-controls` or `aria-owns`, which is how `hub-select`'s list hanging on `<body>` keeps it
+open. Every other key is the editor's: the grid neither moves nor types on it, `Enter` included, so
+the Enter that picks an answer never also opens the cell below. A picker commits when the reader
+chooses; an editor with something to confirm hands each value to `draft` instead, and `Tab` or
+leaving commits the last one:
+
+```html
+<ng-template hubSpreadsheetEditor="note" let-value let-draft="draft">
+	<input [value]="value ?? ''" (input)="draft($any($event.target).value)" />
+</ng-template>
+```
+
+The same goes for anything the host draws in a row opened through `expansion`: its keys are its own.
+
 **Every list column, one provider.** Register an adapter and they all upgrade, with no template
 written anywhere:
 
@@ -603,6 +625,28 @@ a few times larger than Excel's. Reading uses the decompressor the platform alre
 (`DecompressionStream`, in every browser since 2023), since a real workbook is deflated. What is not
 there: several sheets, column widths, and editing a workbook that already exists.
 
+## Text a cell cannot store
+
+`Enter` or `Tab` over `7x` in a figure column keeps the editor open and marked. Leaving the cell
+instead — clicking elsewhere, or a Save button outside the sheet — closes the editor but keeps the
+text: the cell shows it ringed as invalid, with a tooltip saying it was not saved, and
+`invalidDrafts` holds it keyed by row and column.
+
+```html
+<hub-spreadsheet [(invalidDrafts)]="unsaved" ... />
+<button [disabled]="hasUnsaved()" (click)="save()">Save</button>
+```
+
+```ts
+readonly unsaved = signal<Record<string, string>>({});
+readonly hasUnsaved = computed(() => Object.keys(this.unsaved()).length > 0);
+```
+
+Opening the cell brings the text back to be corrected. `Escape` there gives it up, and a paste, a
+fill or a clear over the cell drops it. So does the cell leaving the sheet, when its row or its
+column is deleted, filtered out or paged away. Your data never changes on its own: the old value stays
+where it was until the reader commits a new one.
+
 ## 🎨 Styling
 
 The component ships its own styles. Nothing to import.
@@ -640,7 +684,7 @@ Full catalogue: [`docs/css-variables-reference.md`](./docs/css-variables-referen
 
 ## ♿ Accessibility
 
-The sheet is a real `role="grid"`: cells carry `aria-colindex` and their rows `aria-rowindex`, `aria-selected` follows the range, `aria-readonly` marks what cannot be typed into, `aria-invalid` marks an editor holding something unreadable, and `aria-busy` marks a cell being saved. Focus roves: one cell is in the tab order, the arrows do the rest.
+The sheet is a real `role="grid"`: cells carry `aria-colindex` and their rows `aria-rowindex`, `aria-selected` follows the range, `aria-readonly` marks what cannot be typed into, `aria-invalid` marks an editor or a cell holding something unreadable, and `aria-busy` marks a cell being saved. Focus roves: one cell is in the tab order, the arrows do the rest. A polite live region reads out what otherwise only shows, such as the place a row was moved to from the keyboard.
 
 One thing worth knowing about the implementation. Browsers dispatch `paste` only to editable elements, so the paste shortcut hands focus to an off-screen field for the length of the event and the cell takes it straight back. That is what keeps the clipboard working in Firefox and Safari, not only in Chrome.
 

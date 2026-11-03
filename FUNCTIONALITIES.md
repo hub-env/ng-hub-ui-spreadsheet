@@ -18,6 +18,7 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 | **Rows**          | A row opens in place, with its own content (`expansion` / `expandedRow`)    |     ✅      |       ✅        |
 |                   | A group of rows that folds under its heading (`rowLevel` / `collapsedRows`) |     ✅      |       ✅        |
 |                   | Reordering by a grip shown on hover (`reorderableRows`, `rowMoved`)         |     ✅      |       ✅        |
+|                   | Moved from the keyboard with `Alt+Shift` and an arrow, read out             |     ✅      |       ✅        |
 | **Columns**       | Stable alias plus visible header (`key` / `header`)                         |     ✅      |       ❌        |
 |                   | A group of columns that folds away (`level` / `collapsedColumns`)           |     ✅      |       ✅        |
 |                   | Translated header (`translate`)                                             |     ✅      |       ❌        |
@@ -42,9 +43,12 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 |                   | `Enter` commits and moves down, `Tab` commits and moves right               |     ✅      |       ❌        |
 |                   | `Escape` reverts                                                            |     ✅      |       ❌        |
 |                   | Editor stays open and marked when the value does not parse                  |     ✅      |       ❌        |
+|                   | Text that does not parse kept in the cell on leaving it (`invalidDrafts`)   |     ✅      |       ✅        |
 |                   | Numbers read in the reader's own convention (`decimalMark`)                 |     ✅      |       ❌        |
 |                   | Input-method safe (composition and the legacy `229`)                        |     ✅      |       ❌        |
 |                   | Replaceable editor per column (`hubSpreadsheetEditor`)                      |     ✅      |       ✅        |
+|                   | Keys typed into it, or into the open row, are left to it                    |     ✅      |       ✅        |
+|                   | It closes on `Escape`, on `Tab` and on leaving it (`draft`)                 |     ✅      |       ✅        |
 |                   | Cells drawn by the host per column (`hubSpreadsheetCell`)                   |     ✅      |       ✅        |
 |                   | Control adapter for every list column (`provideHubSpreadsheetControls`)     |     ✅      |       ✅        |
 |                   | A `hub-select`, or any picker, inside a cell                                |     ✅      |       ✅        |
@@ -135,22 +139,28 @@ do not have no table to write. Excel refuses the same command for the same reaso
 
 ## Examples
 
-Fifteen, all on the [documentation page](https://hubui.dev/en/spreadsheet/examples):
+Twenty-one, all on the [documentation page](https://hubui.dev/en/spreadsheet/examples):
 
-| Example                       | What it is for                                                            |
-| :---------------------------- | :------------------------------------------------------------------------ |
-| An editable sheet             | The keyboard, the selection and a commit that the host writes             |
-| The clipboard                 | Copy out to Excel and paste back in, with the raw figures recovered       |
-| Column kinds and editors      | Text, number, currency, date, boolean and a closed list                   |
-| Formulas                      | Aliases and coordinates, the suggestions, and a formula fixed on a column |
-| Cells drawn by the host       | A column of the sheet's own, with what it opens said by the template      |
-| A registered control library  | `provideHubSpreadsheetControls`, so a picker needs no template            |
-| Frozen panes                  | Pinned header, columns and rows                                           |
-| Merged cells                  | Declared blocks, and merging or splitting from the menu                   |
-| Only what is in view          | Ten thousand rows and fifty-two columns                                   |
-| Fill and undo                 | The handle, the series it continues, and one step per gesture             |
-| Resized and reordered         | Dragging an edge, a header, or a row's grip                               |
-| Save state per cell           | The five states, drawn as a bar                                           |
-| Structural changes            | Insert and delete, and the permissions that refuse them                   |
-| Signal Forms                  | The sheet as a field tree, with the errors it reports                     |
-| Files                         | Out to `.xlsx` or CSV, and either one read back in                        |
+| Example                        | What it is for                                                            |
+| :----------------------------- | :------------------------------------------------------------------------ |
+| An editable sheet              | The keyboard, the selection and a commit that the host writes             |
+| The clipboard                  | Copy out to Excel and paste back in, with the raw figures recovered       |
+| Column kinds and editors       | The kinds the sheet ships, a `hub-select`, and a time field using `draft` |
+| Formulas                       | Aliases and coordinates, the suggestions, and a formula fixed on a column |
+| Cells drawn by the host        | A column of the sheet's own, with what it opens said by the template      |
+| A registered control library   | `provideHubSpreadsheetControls`, so a picker needs no template            |
+| Frozen panes                   | Pinned header, columns and rows                                           |
+| Merged cells                   | Declared blocks, and merging or splitting from the menu                   |
+| Only what is in view           | Ten thousand rows and fifty-two columns                                   |
+| Fill and undo                  | The handle, the series it continues, and one step per gesture             |
+| Resized and reordered          | Dragging an edge, a header, or a row's grip; `Alt+Shift` with an arrow    |
+| Save state per cell            | The five states, drawn as a bar                                           |
+| Text a cell cannot store       | `invalidDrafts` holding a save back until the text is corrected           |
+| Structural changes             | Insert and delete, and the permissions that refuse them                   |
+| Signal Forms                   | The sheet as a field tree, with the errors it reports                     |
+| Files                          | Out to `.xlsx` or CSV, and either one read back in                        |
+| Column groups                  | A group of columns that folds away                                        |
+| Row groups                     | A group of rows that folds under its heading                              |
+| Cell hints                     | A hint per column, and one per cell where the column's would be wrong     |
+| Cells that open onto something | A link or a button in a cell, drawn by a template                         |
+| A row opened in place          | The lines behind a total, under its row, with a field of their own        |

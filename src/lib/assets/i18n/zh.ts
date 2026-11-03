@@ -10,6 +10,8 @@ export const locale = {
 		DELETE_COLUMNS: '删除 {{ count }} 列',
 		MERGE_CELLS: '合并 {{ count }} 个单元格',
 		UNMERGE_CELLS: '拆分 {{ count }} 个合并块',
-		ROW_ACTIONS: '行与列操作'
+		ROW_ACTIONS: '行与列操作',
+		ROW_MOVED: '行已移至第 {{ position }} 位，共 {{ total }} 行',
+		INVALID_DRAFT: '未保存：“{{ text }}”在此处不是有效值'
 	}
 };

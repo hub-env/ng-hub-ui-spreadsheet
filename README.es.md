@@ -62,6 +62,7 @@ Esta biblioteca forma parte del ecosistema **ng-hub-ui**:
 - [➕ Añadir y quitar filas y columnas](#-añadir-y-quitar-filas-y-columnas)
 - [📖 Referencia de la API](#-referencia-de-la-api)
 - [Archivos](#archivos)
+- [Texto que una celda no puede guardar](#texto-que-una-celda-no-puede-guardar)
 - [🎨 Estilos](#-estilos)
 - [♿ Accesibilidad](#-accesibilidad)
 - [🤝 Contribuir](#-contribuir)
@@ -265,7 +266,9 @@ Para una celda que abre el detalle propio de la fila, pon el detalle en una plan
 | Cualquier carácter imprimible    | Sustituir la celda y empezar a editar                                       |
 | `F2`, `Intro`                    | Editar conservando el valor                                                 |
 | `Alt` + `Abajo`                  | Abrir una celda que lleva una lista o una fecha                             |
+| `Alt+Mayús` + `Arriba` / `Abajo` | Mover la fila un puesto, con `reorderableRows`, y decir adónde fue          |
 | `Intro` / `Tab` al editar        | Confirmar y bajar / avanzar                                                 |
+| `Escape` / `Tab` en tu editor    | Cerrarlo como estaba / confirmar lo que guarda y avanzar                    |
 | `Escape`                         | Revertir la edición, y después deshacer la selección                        |
 | `Supr` / `Retroceso`             | Vaciar una celda abriendo su editor, o todas las editables de una selección |
 | `Ctrl+C` / `X` / `V`             | Copiar, cortar, pegar                                                       |
@@ -349,6 +352,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `rowKey`             | `(row: TRow) => string`                                     | —                | **Obligatoria.** Un nombre estable por fila.                                                                                           |
 | `states`             | `Record<string, HubSpreadsheetCellState>`                   | `{}`             | Estado de guardado por celda, con clave `` `${rowKey}\t${columnKey}` ``.                                                               |
 | `errors`             | `Record<string, string>`                                    | `{}`             | Un mensaje de validación por celda, con la misma clave. Rodea la celda y sale en un tooltip al pasar el ratón o llegar con el teclado. |
+| `invalidDrafts`      | `Record<string, string>`                                    | `{}`             | Doble sentido. El texto que quedó en una celda y la columna no puede guardar, con la misma clave. Ver más abajo.                       |
 | `decimalMark`        | `',' \| '.'`                                                | `','`            | Con qué carácter escribe los decimales este lector.                                                                                    |
 | `emptyText`          | `string`                                                    | `''`             | Qué dice una hoja vacía.                                                                                                               |
 | `pageSize`           | `number`                                                    | `10`             | Filas que recorren `Re Pág` y `Av Pág`.                                                                                                |
@@ -395,6 +399,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `redoRequested`         | `void`                          | `Ctrl+Mayús+Z` o `Ctrl+Y`.                                                                                                    |
 | `columnMoved`           | `{ from, to, key, keys }`       | Se suelta una cabecera. `keys` llega ya reordenado.                                                                           |
 | `rowMoved`              | `{ from, to, key, keys }`       | Se suelta una fila. `keys` llega ya reordenado.                                                                               |
+| `invalidDraftsChange`   | `Record<string, string>`        | El lector sale de una celda con texto que no vale, o corrige, abandona o sobrescribe uno.                                     |
 | `mergeRequested`        | `HubSpreadsheetMergeRequest`    | El lector pide combinar una selección. Incluye lo que absorbe.                                                                |
 | `unmergeRequested`      | `readonly HubGridCoords[]`      | El lector pide separar los bloques que toca su selección.                                                                     |
 
@@ -546,6 +551,24 @@ la celda, que es lo que va en el buscador de un selector.
 </hub-spreadsheet>
 ```
 
+La hoja cierra tu editor igual que cierra el suyo. `Escape` lo cierra como estaba, después de que una
+lista abierta dentro (`aria-expanded="true"`) se haya quedado con ese Escape. `Tab` confirma y
+avanza, y si el foco sale de él confirma sin moverse, salvo que entre en la ventana emergente que uno
+de sus controles nombra con `aria-controls` o `aria-owns`: así la lista de `hub-select`, colgada de
+`<body>`, lo mantiene abierto. Las demás teclas son del editor: la cuadrícula no se mueve ni escribe
+con ellas, tampoco con `Intro`, así que el Intro que elige una respuesta ya no abre además la celda
+de abajo. Un selector confirma cuando el lector elige; un editor con algo que confirmar le pasa cada
+valor a `draft`, y `Tab` o salir confirman el último:
+
+```html
+<ng-template hubSpreadsheetEditor="note" let-value let-draft="draft">
+	<input [value]="value ?? ''" (input)="draft($any($event.target).value)" />
+</ng-template>
+```
+
+Lo mismo vale para lo que el anfitrión dibuja en una fila abierta con `expansion`: sus teclas son
+suyas.
+
 **Todas las columnas de lista, un proveedor.** Se registra un adaptador y suben todas, sin escribir
 ninguna plantilla:
 
@@ -608,6 +631,28 @@ trae la plataforma (`DecompressionStream`, en todos los navegadores desde 2023),
 verdad viene comprimido. Lo que no hay: varias hojas, anchos de columna y editar un libro que ya
 existe.
 
+## Texto que una celda no puede guardar
+
+`Intro` o `Tab` sobre `7x` en una columna de cifras dejan el editor abierto y marcado. Salir de la
+celda —pulsar en otro sitio, o un botón Guardar fuera de la hoja— cierra el editor pero conserva el
+texto: la celda lo muestra rodeado como no válido, con un tooltip que dice que no se guardó, e
+`invalidDrafts` lo guarda con la clave de su fila y su columna.
+
+```html
+<hub-spreadsheet [(invalidDrafts)]="unsaved" ... />
+<button [disabled]="hasUnsaved()" (click)="save()">Guardar</button>
+```
+
+```ts
+readonly unsaved = signal<Record<string, string>>({});
+readonly hasUnsaved = computed(() => Object.keys(this.unsaved()).length > 0);
+```
+
+Al abrir la celda vuelve el texto para corregirlo. `Escape` ahí lo abandona, y un pegado, un relleno
+o un borrado sobre la celda lo quitan. También se va si la celda sale de la hoja, porque su fila o su
+columna se borra, se filtra o queda en otra página. Tus datos nunca cambian solos: el valor anterior sigue donde
+estaba hasta que el lector confirme uno nuevo.
+
 ## 🎨 Estilos
 
 El componente trae sus propios estilos. No hay que importar nada.
@@ -645,7 +690,7 @@ Catálogo completo: [`docs/css-variables-reference.md`](./docs/css-variables-ref
 
 ## ♿ Accesibilidad
 
-La hoja es un `role="grid"` de verdad: las celdas llevan `aria-colindex` y sus filas `aria-rowindex`, `aria-selected` sigue al rango, `aria-readonly` marca lo que no se puede escribir, `aria-invalid` marca un editor con algo ilegible dentro, y `aria-busy` marca una celda guardándose. El foco viaja: una sola celda está en el orden de tabulación y las flechas hacen el resto.
+La hoja es un `role="grid"` de verdad: las celdas llevan `aria-colindex` y sus filas `aria-rowindex`, `aria-selected` sigue al rango, `aria-readonly` marca lo que no se puede escribir, `aria-invalid` marca un editor o una celda con algo ilegible dentro, y `aria-busy` marca una celda guardándose. El foco viaja: una sola celda está en el orden de tabulación y las flechas hacen el resto. Una región viva educada lee en voz alta lo que de otro modo solo se ve, como el puesto al que se movió una fila con el teclado.
 
 Una cosa que conviene saber de cómo está hecho. Los navegadores solo mandan el evento de pegar a elementos editables, así que el atajo de pegar cede el foco a un campo escondido durante el evento y la celda lo recupera enseguida. Eso es lo que mantiene el portapapeles funcionando en Firefox y en Safari, y no solo en Chrome.
 

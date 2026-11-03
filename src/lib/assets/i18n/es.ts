@@ -10,6 +10,8 @@ export const locale = {
 		DELETE_COLUMNS: 'Borrar {{ count }} columna(s)',
 		MERGE_CELLS: 'Combinar {{ count }} celdas',
 		UNMERGE_CELLS: 'Separar {{ count }} bloque(s)',
-		ROW_ACTIONS: 'Acciones de filas y columnas'
+		ROW_ACTIONS: 'Acciones de filas y columnas',
+		ROW_MOVED: 'Fila movida a la posición {{ position }} de {{ total }}',
+		INVALID_DRAFT: 'Sin guardar: «{{ text }}» no es un valor válido aquí'
 	}
 };

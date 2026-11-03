@@ -2,6 +2,27 @@
 
 This file documents breaking changes and migration steps for `ng-hub-ui-spreadsheet`.
 
+## [22.9.0] - 2026-11-03
+
+No breaking changes. The public surface only grows: an `invalidDrafts` model, a `draft` function in
+the editor context and two dictionary labels. Nothing was renamed or removed.
+
+Three behaviours change, all of them fixes, and worth knowing if a sheet of yours relied on the old
+ones:
+
+- **A supplied editor no longer stays open until it calls `commit` or `cancel`.** `Escape`, `Tab`
+  and focus leaving it now close it. A picker keeps it open while the focus is inside it or inside a
+  popup one of its controls names through `aria-controls` or `aria-owns`; `hub-select` does both. A
+  picker of your own whose panel takes the focus outside the cell without naming it that way would
+  now close: name the panel from the control, or keep the focus in the field. A template that already
+  calls `cancel` on `Escape` keeps working, and the sheet does not close it a second time.
+- **Leaving a cell with text it cannot store keeps the text** in `invalidDrafts` and on screen,
+  where it used to be dropped. If you do nothing, the cell shows the text ringed as invalid until the
+  reader corrects it; your data is untouched either way, as before.
+- **With `reorderableRows`, `Alt+Shift` with the down arrow moves the row** instead of opening the
+  cell, which it did only because `Alt` with the down arrow does. Without `reorderableRows` nothing
+  changes.
+
 ## [22.7.0] - 2026-10-27
 
 ### `Backspace` and `Delete` on a single cell open its editor instead of emitting `cleared`

@@ -10,6 +10,8 @@ export const locale = {
 		DELETE_COLUMNS: 'Удалить столбцов: {{ count }}',
 		MERGE_CELLS: 'Объединить {{ count }} ячеек',
 		UNMERGE_CELLS: 'Разделить {{ count }} блок(ов)',
-		ROW_ACTIONS: 'Действия со строками и столбцами'
+		ROW_ACTIONS: 'Действия со строками и столбцами',
+		ROW_MOVED: 'Строка перемещена на позицию {{ position }} из {{ total }}',
+		INVALID_DRAFT: 'Не сохранено: «{{ text }}» — недопустимое значение'
 	}
 };

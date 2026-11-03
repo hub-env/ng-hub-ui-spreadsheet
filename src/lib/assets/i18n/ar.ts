@@ -10,6 +10,8 @@ export const locale = {
 		DELETE_COLUMNS: 'حذف {{ count }} عمود',
 		MERGE_CELLS: 'دمج {{ count }} خلية',
 		UNMERGE_CELLS: 'فصل {{ count }} كتلة',
-		ROW_ACTIONS: 'إجراءات الصفوف والأعمدة'
+		ROW_ACTIONS: 'إجراءات الصفوف والأعمدة',
+		ROW_MOVED: 'نُقل الصف إلى الموضع {{ position }} من {{ total }}',
+		INVALID_DRAFT: 'لم يُحفظ: «{{ text }}» ليست قيمة صالحة هنا'
 	}
 };
