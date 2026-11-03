@@ -1,5 +1,16 @@
 # Changelog
 
+## [22.9.1] - 2026-11-03
+
+### Changed
+
+- The sheet's own labels go through `hubTranslate` (`HubTranslatePipe`) instead of the `translate`
+  pipe, which `ng-hub-ui-utils` deprecated. Both read the same dictionaries, so a host sees no
+  difference.
+- The check for a key that an input method is still composing lives in one function, with the
+  reason it reads the deprecated `keyCode`: Safari marks the key that confirms a candidate only with
+  the legacy 229.
+
 ## [22.9.0] - 2026-11-03
 
 ### Added
@@ -103,7 +114,7 @@
 
 ### Added
 
-- **A cell can say what it is empty *of*.** `HubSpreadsheetCell` gains `placeholder`: a hint
+- **A cell can say what it is empty _of_.** `HubSpreadsheetCell` gains `placeholder`: a hint
   shown in that cell while it is empty, on hover — the figure it would inherit from elsewhere, a
   default it falls back on. Where the column's own `placeholder` says the same thing in every row,
   this one says what a particular empty cell stands for; left out, the column's is used.

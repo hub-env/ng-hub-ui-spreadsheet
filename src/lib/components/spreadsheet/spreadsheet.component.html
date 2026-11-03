@@ -553,14 +553,14 @@ clickable to write its alias into the formula. -->
 	<div
 		class="hub-spreadsheet__menu"
 		role="menu"
-		[attr.aria-label]="'ROW_ACTIONS' | translate"
+		[attr.aria-label]="'ROW_ACTIONS' | hubTranslate"
 		[style.inset-inline-start.px]="at.x"
 		[style.inset-block-start.px]="at.y"
 		(mousedown)="$event.stopPropagation()"
 	>
 		@for (entry of menuEntries(); track entry.id) {
 			<button class="hub-spreadsheet__menu-item" type="button" role="menuitem" (click)="runMenuEntry(entry.id)">
-				{{ entry.label | translate: { count: entry.count } }}
+				{{ entry.label | hubTranslate: { count: entry.count } }}
 			</button>
 		}
 	</div>

@@ -51,10 +51,10 @@ import {
 	HUB_FIELD_FEEDBACK,
 	HUB_TRANSLATION_PREFIX,
 	HubTooltipDirective,
+	HubTranslatePipe,
 	HubTranslationService,
 	interpolateString,
-	PointerDragSession,
-	TranslatePipe
+	PointerDragSession
 } from 'ng-hub-ui-utils';
 import { locale as englishLabels } from '../../assets/i18n/en';
 import { displayValue, isTruthy, parseForColumn } from '../../columns/cell-values';
@@ -124,7 +124,7 @@ const FIRST_PASS_ROW_HEIGHT = 32;
 @Component({
 	selector: 'hub-spreadsheet',
 	standalone: true,
-	imports: [NgTemplateOutlet, TranslatePipe, HubSpreadsheetControlDirective, HubTooltipDirective],
+	imports: [NgTemplateOutlet, HubTranslatePipe, HubSpreadsheetControlDirective, HubTooltipDirective],
 	providers: [
 		{ provide: HUB_TRANSLATION_PREFIX, useValue: 'HUBUI.SPREADSHEET' },
 		// A form field opened inside a cell keeps its message for a tooltip: written under the
@@ -3124,7 +3124,7 @@ export class HubSpreadsheetComponent<TRow> {
 	protected onEditorKeydown(event: KeyboardEvent): void {
 		// A composition is in flight: the Enter that picks a candidate is not the Enter that
 		// commits the cell.
-		if (event.isComposing || event.keyCode === 229) {
+		if (isComposing(event)) {
 			return;
 		}
 
@@ -3290,7 +3290,7 @@ export class HubSpreadsheetComponent<TRow> {
 	 * that picks an option from one that confirms, and taken as the grid's it opens the cell below.
 	 */
 	private onSuppliedEditorKeydown(event: KeyboardEvent): void {
-		if (!this.editing() || event.isComposing || event.keyCode === 229) {
+		if (!this.editing() || isComposing(event)) {
 			return;
 		}
 
@@ -3591,7 +3591,7 @@ export class HubSpreadsheetComponent<TRow> {
 	 * So they are added to the draft, which is what the field shows the moment it appears.
 	 */
 	private catchUp(event: KeyboardEvent): void {
-		if (event.isComposing || event.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey) {
+		if (isComposing(event) || event.ctrlKey || event.metaKey || event.altKey) {
 			return;
 		}
 
@@ -3898,6 +3898,17 @@ export class HubSpreadsheetComponent<TRow> {
 			this.cleared.emit(cells);
 		}
 	}
+}
+
+/**
+ * Whether a key belongs to an input method (Japanese, Chinese, Korean) still composing a character.
+ *
+ * `keyCode` is deprecated, and nothing has replaced it for this. Safari sends the key that confirms
+ * a candidate after `compositionend`, with `isComposing` already false and the legacy 229 as its
+ * only mark; `key === 'Process'` misses it. Read in this one place so the reason travels with it.
+ */
+function isComposing(event: KeyboardEvent): boolean {
+	return event.isComposing || event.keyCode === 229;
 }
 
 /** `Alt+Shift` with the up or down arrow, the keyboard's way of moving a row. */
