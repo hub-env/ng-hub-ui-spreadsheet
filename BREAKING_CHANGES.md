@@ -2,6 +2,11 @@
 
 This file documents breaking changes and migration steps for `ng-hub-ui-spreadsheet`.
 
+## [22.12.1] - 2026-11-04
+
+No breaking changes. An end-aligned list column now keeps a lane for its caret; a project that
+reserved that room itself can drop its own rule.
+
 ## [22.12.0] - 2026-11-04
 
 No breaking changes. One method is new (`editCell`) and `Alt+Enter` opens a cell that is also typed

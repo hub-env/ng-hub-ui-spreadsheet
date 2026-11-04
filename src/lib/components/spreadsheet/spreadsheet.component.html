@@ -44,6 +44,7 @@
 						[class.hub-spreadsheet__header--frozen]="isFrozenColumn(columnIndex)"
 						[class.hub-spreadsheet__header--frozen-edge]="isColumnEdge(columnIndex)"
 						[class.hub-spreadsheet__header--end]="column.align === 'end'"
+						[class.hub-spreadsheet__header--listed]="listedAtEnd(column, columnIndex)"
 						[class.hub-spreadsheet__header--center]="column.align === 'center'"
 						[class.hub-spreadsheet__grouped]="groupedColumns().has(columnIndex)"
 						[style.inset-inline-start.px]="columnOffsetOf(columnIndex)"
@@ -174,6 +175,7 @@
 								[class.hub-spreadsheet__cell--readonly]="!editable"
 								[class.hub-spreadsheet__cell--muted]="cell.muted"
 								[class.hub-spreadsheet__cell--end]="column.align === 'end'"
+								[class.hub-spreadsheet__cell--listed]="listedAtEnd(column, colIndex)"
 								[class.hub-spreadsheet__cell--center]="column.align === 'center'"
 								[class.hub-spreadsheet__cell--frozen-col]="isFrozenColumn(colIndex)"
 								[class.hub-spreadsheet__cell--frozen-row]="isFrozenRow(rowIndex)"
@@ -235,6 +237,12 @@
 												</option>
 											}
 										</select>
+										<!-- The open list keeps the caret the cell showed, in the same place, instead
+									of the browser's own, so the arrow does not change shape on the click. -->
+										<span
+											class="hub-spreadsheet__affordance hub-spreadsheet__affordance--open"
+											aria-hidden="true"
+										></span>
 									} @else {
 										@if (writingFormula()) {
 											<!-- The draft again, in colour, drawn behind the field — which keeps the

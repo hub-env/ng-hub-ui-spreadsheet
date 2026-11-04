@@ -929,7 +929,9 @@ $move-grip-reach: 1.2rem;
 	// A native list so the keyboard, the type-ahead and the mobile behaviour are the platform's.
 	// A column that wants something richer replaces the editor wholesale.
 	padding-inline: calc(#{$cell-padding-x} - 2px);
-	appearance: auto;
+	// The browser's arrow goes and the sheet's stays (`__affordance--open`), with room kept for it.
+	padding-inline-end: calc(#{$affordance-gap} * 2 + #{$affordance-size} * 2);
+	appearance: none;
 }
 
 // The host's own editor fills the cell and is left to style itself; only the frame is ours.
@@ -1031,6 +1033,22 @@ $move-grip-reach: 1.2rem;
 		border-block-start-width: 3px;
 		border-radius: 2px;
 	}
+
+	// Over the open list, standing in for the browser's arrow: always shown, above the field, and
+	// letting the pointer through to the list beneath it.
+	&--open {
+		z-index: 3;
+		opacity: 1;
+		pointer-events: none;
+	}
+}
+
+// An end-aligned list keeps a lane for its caret, in its cells and in its header alike: the caret
+// sits where such a value ends, and without the lane it covered the value's last characters on
+// hover. Wider than the cell's own padding, so the lane replaces it rather than adding to it.
+.hub-spreadsheet__header--listed,
+.hub-spreadsheet__cell--listed {
+	padding-inline-end: max(#{$cell-padding-x}, calc(#{$affordance-gap} * 2 + #{$affordance-size} * 2));
 }
 
 .hub-spreadsheet__placeholder {

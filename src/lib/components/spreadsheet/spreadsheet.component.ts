@@ -2276,6 +2276,18 @@ export class HubSpreadsheetComponent<TRow> {
 	}
 
 	/**
+	 * Whether an end-aligned column keeps a lane for the caret of its list or date.
+	 *
+	 * The caret is drawn at the end of the cell, which is where an end-aligned value ends too, and
+	 * on hover it lay over the last characters ("19 %"). The cells and the header both stop short
+	 * of the lane, so the caret never covers a value and the column still reads in one line. Only
+	 * while the sheet can be edited, which is when the caret is drawn at all.
+	 */
+	protected listedAtEnd(column: HubSpreadsheetColumn<TRow>, col: number): boolean {
+		return column.align === 'end' && !this.readonly() && this.affordanceOf(column, col) !== null;
+	}
+
+	/**
 	 * What a cell should show to say it opens onto something, or null when it opens onto a field.
 	 *
 	 * Only drawn on the cell the reader is on. A caret down every row of a column would read as

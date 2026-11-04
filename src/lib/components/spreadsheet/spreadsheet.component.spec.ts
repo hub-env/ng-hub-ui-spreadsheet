@@ -990,6 +990,45 @@ describe('HubSpreadsheetComponent', () => {
 			expect(css).toMatch(/hub-spreadsheet__cell--active[^{]*hub-spreadsheet__affordance/);
 		});
 
+		it('keeps the same caret when the list opens, instead of the one the browser draws', () => {
+			withStatus();
+			click(0, 3);
+			press('ArrowDown', { altKey: true });
+
+			const list: HTMLSelectElement = cell(0, 3).querySelector('select.hub-spreadsheet__editor')!;
+			const caret = cell(0, 3).querySelector('.hub-spreadsheet__affordance--open');
+
+			expect(list).not.toBeNull();
+			expect(caret?.getAttribute('aria-hidden')).toBe('true');
+
+			const css = Array.from(document.querySelectorAll('style'))
+				.map((style) => style.textContent ?? '')
+				.join('\n');
+			const start = css.indexOf('.hub-spreadsheet__editor--select');
+
+			expect(css.slice(start, css.indexOf('}', start))).toMatch(/appearance:\s*none/);
+		});
+
+		it('keeps a lane for the caret in an end-aligned list, in its cells and its header', () => {
+			withStatus();
+			host.columns.update((columns) =>
+				columns.map((column) => (column.key === 'status' ? { ...column, align: 'end' as const } : column))
+			);
+			fixture.detectChanges();
+
+			expect(cell(0, 3).classList.contains('hub-spreadsheet__cell--listed')).toBe(true);
+			expect(header(3).classList.contains('hub-spreadsheet__header--listed')).toBe(true);
+			// A figure with no list to open has no caret, so it keeps the cell's own padding.
+			expect(cell(0, 0).classList.contains('hub-spreadsheet__cell--listed')).toBe(false);
+
+			host.readonly.set(true);
+			fixture.detectChanges();
+
+			// Read-only draws no caret, so the column keeps no lane for one.
+			expect(cell(0, 3).classList.contains('hub-spreadsheet__cell--listed')).toBe(false);
+			expect(header(3).classList.contains('hub-spreadsheet__header--listed')).toBe(false);
+		});
+
 		it('opens the cell from that mark on the first click, without waiting for a second', () => {
 			withStatus();
 

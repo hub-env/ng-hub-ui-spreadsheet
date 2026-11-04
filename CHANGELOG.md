@@ -1,5 +1,19 @@
 # Changelog
 
+## [22.12.1] - 2026-11-04
+
+### Fixed
+
+- **A list keeps the same caret when it opens.** The cell showed the sheet's caret, and the native
+  list that opens over it drew the browser's own arrow, of another shape. The list now hides the
+  browser's arrow and keeps the sheet's, in the same place; the list itself is still the
+  platform's, with its keyboard and its type-ahead.
+- **An end-aligned list keeps a lane for its caret.** A column that opens onto a list or a date (a
+  `select`, one with `options` or a supplied editor, or a `date`) set to `align: 'end'` drew its
+  caret over the end of the value on hover ("19 %"). Its cells and its header now stop short of the
+  caret, so the value stays clear and the column still reads in one line. Only while the sheet can
+  be edited, when the caret is drawn.
+
 ## [22.12.0] - 2026-11-04
 
 ### Added
