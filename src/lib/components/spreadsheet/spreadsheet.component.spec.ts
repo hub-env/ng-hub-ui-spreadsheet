@@ -3652,4 +3652,222 @@ describe('HubSpreadsheetComponent', () => {
 			expect(mine()).toBeNull();
 		});
 	});
+	describe('a column with an appended value', () => {
+		const units: Record<string, string | null> = { a: 'h', b: null, c: 'zz' };
+		const options = [
+			{ value: 'h', label: 'h' },
+			{ value: 'pct', label: '%' },
+			{ value: 'eur', label: '€' }
+		];
+
+		beforeEach(() => {
+			host.fillHandle.set(true);
+			host.columns.set([
+				{ key: 'product', header: 'Producto', cell: (row) => ({ value: row.product, editable: true }) },
+				{
+					key: 'units',
+					header: 'Unidades',
+					kind: 'number',
+					cell: (row) => ({ value: row.units, editable: true }),
+					append: {
+						key: 'unit',
+						label: 'Unit',
+						options,
+						cell: (row) => ({ value: units[row.id], editable: row.id !== 'c' })
+					}
+				}
+			]);
+			fixture.detectChanges();
+		});
+
+		function appendOf(row: number): HTMLElement | null {
+			return cell(row, 1).querySelector('.hub-spreadsheet__append');
+		}
+
+		function paste(text: string): void {
+			fixture.nativeElement
+				.querySelector('.hub-spreadsheet__sink')
+				.dispatchEvent(clipboardEvent('paste', { 'text/plain': text }));
+			fixture.detectChanges();
+		}
+
+		function pasted(text: string): [string, unknown][] {
+			click(1, 1);
+			paste(text);
+
+			return host.pastes.at(-1)!.cells.map((c) => [c.column.key, c.value]);
+		}
+
+		it('shows the label after the value, the raw value when the option is gone, and nothing when empty', () => {
+			expect(cell(0, 1).textContent?.replace(/\s+/g, ' ').trim()).toBe('100 h');
+			expect(cell(2, 1).textContent?.replace(/\s+/g, ' ').trim()).toBe('50 zz');
+			expect(appendOf(1)?.classList.contains('hub-spreadsheet__append--hint')).toBe(true);
+			expect(appendOf(1)?.textContent?.trim()).toBe('Unit');
+			expect(appendOf(1)?.getAttribute('aria-hidden')).toBe('true');
+		});
+
+		it('draws a read-only appended value without a way to open it', () => {
+			const read = appendOf(2)!;
+
+			read.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			fixture.detectChanges();
+
+			expect(read.classList.contains('hub-spreadsheet__append--editable')).toBe(false);
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__append-select')).toBeNull();
+		});
+
+		it('opens the list when the appended value is pressed, and reports the choice under its own key', () => {
+			appendOf(0)!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			fixture.detectChanges();
+
+			const list: HTMLSelectElement = fixture.nativeElement.querySelector('.hub-spreadsheet__append-select');
+
+			expect(list.getAttribute('aria-label')).toBe('Unit');
+
+			list.value = '1';
+			list.dispatchEvent(new Event('change'));
+			fixture.detectChanges();
+
+			expect(host.commits).toHaveLength(1);
+			expect(host.commits[0].column.key).toBe('unit');
+			expect(host.commits[0].value).toBe('pct');
+			expect(host.commits[0].coords).toEqual({ row: 0, col: 1 });
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__append-select')).toBeNull();
+		});
+
+		it('opens the same list from the keyboard with Alt and the down arrow, and Escape closes it unchanged', () => {
+			click(1, 1);
+			press('ArrowDown', { altKey: true });
+
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__append-select')).not.toBeNull();
+			expect(cell(1, 1).getAttribute('aria-keyshortcuts')).toBe('Alt+ArrowDown');
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__editor')).toBeNull();
+
+			fixture.nativeElement
+				.querySelector('.hub-spreadsheet__append-select')
+				.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+			fixture.detectChanges();
+
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__append-select')).toBeNull();
+			expect(host.commits).toHaveLength(0);
+		});
+
+		it('adds no tab stop of its own', () => {
+			expect(appendOf(0)?.hasAttribute('tabindex')).toBe(false);
+		});
+
+		it('copies the value and its label, and the value alone when the appended part is empty', () => {
+			click(0, 1);
+
+			const first = clipboardEvent('copy', {});
+
+			fixture.nativeElement.querySelector('.hub-spreadsheet__table').dispatchEvent(first);
+			expect(written(first)).toHaveBeenCalledWith('text/plain', '100 h');
+
+			click(1, 1);
+
+			const second = clipboardEvent('copy', {});
+
+			fixture.nativeElement.querySelector('.hub-spreadsheet__table').dispatchEvent(second);
+			expect(written(second)).toHaveBeenCalledWith('text/plain', '200');
+		});
+
+		it('reads a pasted trailing token with or without the space, in any case', () => {
+			expect(pasted('10%')).toEqual([
+				['units', 10],
+				['unit', 'pct']
+			]);
+			expect(pasted('10 %')).toEqual([
+				['units', 10],
+				['unit', 'pct']
+			]);
+			expect(pasted('2 H')).toEqual([
+				['units', 2],
+				['unit', 'h']
+			]);
+		});
+
+		it('leaves the appended value alone when the pasted text is a bare value', () => {
+			expect(pasted('7')).toEqual([['units', 7]]);
+		});
+
+		it('refuses a trailing token that is on no list, writing nothing for that cell', () => {
+			click(1, 1);
+			paste('10 xyz');
+
+			expect(host.pastes.at(-1)!.cells).toHaveLength(0);
+			expect(host.pastes.at(-1)!.rejected).toBe(1);
+		});
+
+		it('treats each part on its own terms: a locked appended value is not written', () => {
+			click(2, 1);
+			paste('9 %');
+
+			expect(host.pastes.at(-1)!.cells.map((c) => c.column.key)).toEqual(['units']);
+		});
+
+		it('carries the appended value along a fill', () => {
+			click(0, 1);
+
+			const grip = fixture.nativeElement.querySelector('.hub-spreadsheet__fill-handle');
+
+			grip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			fixture.detectChanges();
+			cell(1, 1).dispatchEvent(new MouseEvent('mouseenter', { bubbles: false }));
+			fixture.detectChanges();
+			document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+			fixture.detectChanges();
+
+			expect(host.fills.at(-1)!.cells.map((c) => [c.column.key, c.value])).toEqual([
+				['units', 101],
+				['unit', 'h']
+			]);
+		});
+
+		it('reads a pasted percentage as the figure shown, not the fraction Excel sends underneath', () => {
+			click(1, 1);
+			fixture.nativeElement.querySelector('.hub-spreadsheet__sink').dispatchEvent(
+				clipboardEvent('paste', {
+					'text/plain': '10%',
+					'text/html': '<table><tr><td x:num="0.1">10%</td></tr></table>'
+				})
+			);
+			fixture.detectChanges();
+
+			expect(host.pastes.at(-1)!.cells.map((c) => [c.column.key, c.value])).toEqual([
+				['units', 10],
+				['unit', 'pct']
+			]);
+		});
+
+		it('leaves Alt and the down arrow to a date column, which opens its own picker with it', () => {
+			host.columns.set([
+				{
+					key: 'due',
+					header: 'Vence',
+					kind: 'date',
+					cell: () => ({ value: '2026-11-04', editable: true }),
+					append: { key: 'zone', label: 'Zone', options, cell: () => ({ value: null, editable: true }) }
+				}
+			]);
+			fixture.detectChanges();
+			click(0, 0);
+			press('ArrowDown', { altKey: true });
+
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__append-select')).toBeNull();
+			expect(fixture.nativeElement.querySelector('.hub-spreadsheet__editor')).not.toBeNull();
+			expect(cell(0, 0).hasAttribute('aria-keyshortcuts')).toBe(false);
+		});
+
+		it('places the appended value with logical properties, so it follows the reading direction', () => {
+			const css = Array.from(document.querySelectorAll('style'))
+				.map((style) => style.textContent ?? '')
+				.join('\n');
+			const start = css.indexOf('.hub-spreadsheet__append-select');
+			const rule = css.slice(start, css.indexOf('}', start));
+
+			expect(rule).toContain('margin-inline-start');
+			expect(rule).not.toMatch(/margin-(left|right)/);
+		});
+	});
 });

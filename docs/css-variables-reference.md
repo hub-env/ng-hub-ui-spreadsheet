@@ -185,6 +185,8 @@ The grip only appears when `fillHandle` is set and the sheet is not read-only.
 | `--hub-spreadsheet-placeholder-color`       | `--hub-sys-text-muted` → `#6a737b`                    | Colour of a column's `placeholder` hint.                                                  |
 | `--hub-spreadsheet-placeholder-opacity`     | `0.65`                                                | How strongly it shows on hover.                                                           |
 | `--hub-spreadsheet-placeholder-transition`  | `--hub-sys-transition-fast` → `all 0.15s ease-in-out` | How the hint fades in and out.                                                            |
+| `--hub-spreadsheet-append-color`            | `--hub-sys-text-muted` → `#6a737b`                    | Colour of a column's `append`, the second value after the main one.                       |
+| `--hub-spreadsheet-append-gap`              | `0.25em`                                              | Space before the append's list while it is open.                                          |
 
 A hint appears only in an empty cell and only while the pointer rests on it. Shown always, a
 column of hints reads as a column of content, and a reader scanning for what is filled in would
@@ -224,12 +226,12 @@ grammar of an expression can be read at a glance instead of parsed in the head. 
 column alias, a cell reference and a quoted string each get their own colour; numbers, booleans and
 operators keep the sheet's text colour, and the punctuation steps back.
 
-| Variable                                    | Falls back to                        | What it colours                                            |
-| ------------------------------------------- | ------------------------------------ | ---------------------------------------------------------- |
-| `--hub-spreadsheet-token-function-color`    | `--hub-sys-color-primary` → `#0d6efd`| A function name: `SUM(`, `ROUND(`.                          |
-| `--hub-spreadsheet-token-column-color`      | `--hub-sys-color-info` → `#0a7ea4`   | A column alias: `[units]`, `[total:]`.                      |
-| `--hub-spreadsheet-token-coordinate-color`  | `--hub-sys-color-success` → `#1a7f37`| A cell reference: `B3`, `B3:D7`.                            |
-| `--hub-spreadsheet-token-text-color`        | `--hub-sys-color-danger` → `#b3261e` | A quoted string: `"IVA"`.                                   |
+| Variable                                   | Falls back to                         | What it colours                        |
+| ------------------------------------------ | ------------------------------------- | -------------------------------------- |
+| `--hub-spreadsheet-token-function-color`   | `--hub-sys-color-primary` → `#0d6efd` | A function name: `SUM(`, `ROUND(`.     |
+| `--hub-spreadsheet-token-column-color`     | `--hub-sys-color-info` → `#0a7ea4`    | A column alias: `[units]`, `[total:]`. |
+| `--hub-spreadsheet-token-coordinate-color` | `--hub-sys-color-success` → `#1a7f37` | A cell reference: `B3`, `B3:D7`.       |
+| `--hub-spreadsheet-token-text-color`       | `--hub-sys-color-danger` → `#b3261e`  | A quoted string: `"IVA"`.              |
 
 A cell that is worked out from a formula rather than typed carries a small rounded `fx` in its top
 corner, shown while the pointer is on it — a mark on every formula cell at once would read as
@@ -237,10 +239,10 @@ content. Pressing it opens the cell on its formula, unless the column carries th
 the cell has nothing to type over. Its two tokens sit apart from the ones above because it is a note
 about the cell, not a piece of the formula.
 
-| Variable                              | Falls back to                        | What it colours                                    |
-| ------------------------------------- | ------------------------------------ | -------------------------------------------------- |
-| `--hub-spreadsheet-formula-bg`        | the cursor colour at 14 %            | Background of the `fx`.                            |
-| `--hub-spreadsheet-formula-color`     | `var(--hub-spreadsheet-cursor-color)`| Its text.                                          |
+| Variable                          | Falls back to                         | What it colours         |
+| --------------------------------- | ------------------------------------- | ----------------------- |
+| `--hub-spreadsheet-formula-bg`    | the cursor colour at 14 %             | Background of the `fx`. |
+| `--hub-spreadsheet-formula-color` | `var(--hub-spreadsheet-cursor-color)` | Its text.               |
 
 ---
 

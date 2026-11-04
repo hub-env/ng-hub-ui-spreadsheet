@@ -6,132 +6,134 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 
 ## Component (`hub-spreadsheet`)
 
-| Category          | Functionality                                                                              | Implemented | Example Covered |
-| :---------------- | :----------------------------------------------------------------------------------------- | :---------: | :-------------: |
-| **Cells**         | Value and display text told apart (`value` / `text`)                                       |     ✅      |       ❌        |
-|                   | Secondary line under the value (`secondary`)                                               |     ✅      |       ❌        |
-|                   | A cell that opens onto something, said by its template (`opened`)                          |     ✅      |       ❌        |
-|                   | Which cells of a column open: all, or answered per row                                     |     ✅      |       ✅        |
-|                   | Per-cell editability (`editable`)                                                          |     ✅      |       ❌        |
-|                   | Muted rendering (`muted`)                                                                  |     ✅      |       ❌        |
-|                   | Tooltip (`title`), in the sheet's tooltip and from the keyboard too                        |     ✅      |       ✅        |
-| **Rows**          | A row opens in place, with its own content (`expansion` / `expandedRow`)                   |     ✅      |       ✅        |
-|                   | A group of rows that folds under its heading (`rowLevel` / `collapsedRows`)                |     ✅      |       ✅        |
-|                   | Reordering by a grip shown on hover (`reorderableRows`, `rowMoved`)                        |     ✅      |       ✅        |
-|                   | Moved from the keyboard with `Alt+Shift` and an arrow, read out                            |     ✅      |       ✅        |
-| **Columns**       | Stable alias plus visible header (`key` / `header`)                                        |     ✅      |       ❌        |
-|                   | A group of columns that folds away (`level` / `collapsedColumns`)                          |     ✅      |       ✅        |
-|                   | Translated header (`translate`)                                                            |     ✅      |       ❌        |
-|                   | Value kinds: text, number, currency (`kind`)                                               |     ✅      |       ❌        |
-|                   | Alignment (`align`)                                                                        |     ✅      |       ❌        |
-|                   | Minimum width (`minWidth`)                                                                 |     ✅      |       ❌        |
-|                   | Header hidden from sight but not from screen readers                                       |     ✅      |       ❌        |
-|                   | Column kinds: text, number, currency, date, boolean, select                                |     ✅      |       ✅        |
-|                   | A closed list in the cell, refusing what is not on it                                      |     ✅      |       ✅        |
-|                   | A retired option stays readable and choosable on rows holding it                           |     ✅      |       ✅        |
-|                   | A checkbox that turns over in one click                                                    |     ✅      |       ✅        |
-|                   | A hint in an empty cell, on hover (`placeholder`)                                          |     ✅      |       ✅        |
-|                   | A hint a cell carries of its own, over the column's                                        |     ✅      |       ✅        |
-| **Editing**       | Type to replace the cell                                                                   |     ✅      |       ❌        |
-|                   | `F2` / `Enter` open the editor keeping the value                                           |     ✅      |       ❌        |
-|                   | Two clicks to edit, or one (`editOn`)                                                      |     ✅      |       ✅        |
-|                   | A list or a date field comes up already open                                               |     ✅      |       ✅        |
-|                   | The character that opened the cell lands in the editor                                     |     ✅      |       ✅        |
-|                   | A cell shows what it opens onto, in hand or under the pointer                              |     ✅      |       ✅        |
-|                   | One click on that mark opens the cell                                                      |     ✅      |       ✅        |
-|                   | `Alt` + `Down` opens a list or a date from the keyboard                                    |     ✅      |       ✅        |
-|                   | `Enter` commits and moves down, `Tab` commits and moves right                              |     ✅      |       ❌        |
-|                   | `Escape` reverts                                                                           |     ✅      |       ❌        |
-|                   | Editor stays open and marked when the value does not parse                                 |     ✅      |       ❌        |
-|                   | Text that does not parse kept in the cell on leaving it (`invalidDrafts`)                  |     ✅      |       ✅        |
-|                   | Numbers read in the reader's own convention (`decimalMark`)                                |     ✅      |       ❌        |
-|                   | Input-method safe (composition and the legacy `229`)                                       |     ✅      |       ❌        |
-|                   | Replaceable editor per column (`hubSpreadsheetEditor`)                                     |     ✅      |       ✅        |
-|                   | Keys typed into it, or into the open row, are left to it                                   |     ✅      |       ✅        |
-|                   | It closes on `Escape`, on `Tab` and on leaving it (`draft`)                                |     ✅      |       ✅        |
-|                   | Cells drawn by the host per column (`hubSpreadsheetCell`)                                  |     ✅      |       ✅        |
-|                   | …keeping the box of a yes/no column and the arrow of a list or date                        |     ✅      |       ✅        |
-|                   | A box in a yes/no column's header that ticks every row (`checkAll`)                        |     ✅      |       ✅        |
-|                   | Control adapter for every list column (`provideHubSpreadsheetControls`)                    |     ✅      |       ✅        |
-|                   | A `hub-select`, or any picker, inside a cell                                               |     ✅      |       ✅        |
-|                   | Per-cell validation (`errors`)                                                             |     ✅      |       ✅        |
-|                   | The message in a danger tooltip, on hover or keyboard focus                                |     ✅      |       ✅        |
-|                   | Formulas against the column aliases (`formulas`)                                           |     ✅      |       ✅        |
-|                   | Whole-column reads, circles caught and shown as `#CYCLE!`                                  |     ✅      |       ✅        |
-|                   | Coordinates and ranges (`B3`, `SUM(A1:A4)`), moved with the sheet                          |     ✅      |       ✅        |
-|                   | Suggestions while writing one, and aliases on the headers                                  |     ✅      |       ✅        |
-|                   | A formula fixed on the column (`columns[].formula`)                                        |     ✅      |       ✅        |
-| **Navigation**    | Arrows, `Home` / `End`, `Ctrl+Home` / `Ctrl+End`                                           |     ✅      |       ❌        |
-|                   | `Page Up` / `Page Down` (`pageSize`)                                                       |     ✅      |       ❌        |
-|                   | `Tab` falls onto the next row at the edge                                                  |     ✅      |       ❌        |
-|                   | Only the rows in view, for a long sheet (`virtual`)                                        |     ✅      |       ✅        |
-|                   | Only the columns in view, for a wide one                                                   |     ✅      |       ✅        |
-| **Selection**     | Rectangular range, extended with shift or by dragging                                      |     ✅      |       ❌        |
-|                   | `Ctrl+A`, `Ctrl+Space`, `Shift+Space`                                                      |     ✅      |       ❌        |
-|                   | `Delete` / `Backspace` empty a selection of several cells (`cleared`)                      |     ✅      |       ❌        |
-|                   | `Delete` / `Backspace` on one cell open its editor empty                                   |     ✅      |       ✅        |
-|                   | Cursor and selection drawn only while the sheet holds the focus                            |     ✅      |       ✅        |
-|                   | Disjoint selections (`Ctrl`-click a second block)                                          |     ✅      |       ✅        |
-|                   | `Delete` empties every block; the cursor stays in the last one                             |     ✅      |       ✅        |
-|                   | A copy only when the blocks make a table, refused otherwise                                |     ✅      |       ❌        |
-|                   | The fill handle dropped while more than one block is picked                                |     ✅      |       ✅        |
-| **Clipboard**     | Copy and cut as `text/plain` and `text/html`                                               |     ✅      |       ❌        |
-|                   | Paste from Excel and Google Sheets                                                         |     ✅      |       ❌        |
-|                   | A paste longer than the sheet asks for the rows it needs                                   |     ✅      |       ✅        |
-|                   | Raw number recovered from the HTML flavour                                                 |     ✅      |       ❌        |
-|                   | Quoting honoured both ways (tabs and newlines inside a cell)                               |     ✅      |       ❌        |
-|                   | Skipped and rejected values counted and reported                                           |     ✅      |       ❌        |
-| **Merged cells**  | Declared blocks drawn once, with `rowspan` / `colspan`                                     |     ✅      |       ❌        |
-|                   | Cursor lands on the block, never inside it                                                 |     ✅      |       ❌        |
-|                   | A selection that would clip a block grows to contain it                                    |     ✅      |       ❌        |
-|                   | Merging and splitting from the sheet (`mergeable`)                                         |     ✅      |       ✅        |
-|                   | Its entries in the right-click menu, and only when they apply                              |     ✅      |       ✅        |
-| **Columns**       | Resizing by dragging (`resizableColumns`, `columnWidths`)                                  |     ✅      |       ✅        |
-|                   | Reordering by dragging (`reorderableColumns`, `columnMoved`)                               |     ✅      |       ✅        |
-| **Menu**          | Right-click menu of structural changes (`contextMenu`)                                     |     ✅      |       ✅        |
-|                   | Only what the permissions allow, never opened empty                                        |     ✅      |       ✅        |
-|                   | Eight bundled locales for its own labels                                                   |     ✅      |       ❌        |
-| **Fill**          | Fill handle at the corner of the selection (`fillHandle`)                                  |     ✅      |       ✅        |
-|                   | `Ctrl+D` / `Cmd+D` fills down the selection                                                |     ✅      |       ✅        |
-|                   | Number and numbered-text series continued                                                  |     ✅      |       ✅        |
-|                   | A drag reported as one gesture (`filled`)                                                  |     ✅      |       ✅        |
-| **History**       | Undo and redo asked for (`undoRequested` / `redoRequested`)                                |     ✅      |       ✅        |
-|                   | Availability told to the sheet (`canUndo` / `canRedo`)                                     |     ✅      |       ✅        |
-|                   | A paste or a fill is one step                                                              |     ✅      |       ✅        |
-| **Panes**         | Frozen header                                                                              |     ✅      |       ❌        |
-|                   | Frozen columns (`frozenColumns`)                                                           |     ✅      |       ❌        |
-|                   | Frozen rows (`frozenRows`)                                                                 |     ✅      |       ❌        |
-| **Save state**    | Five states, drawn as a bar (`states`)                                                     |     ✅      |       ❌        |
-|                   | `aria-busy` while saving                                                                   |     ✅      |       ❌        |
-| **Structure**     | Insert and delete requests (`insertRequested` / `deleteRequested`)                         |     ✅      |       ❌        |
-|                   | The cursor put on a cell from code, waiting for a new row (`focusCell`)                    |     ✅      |       ✅        |
-|                   | An empty row stands as tall as a filled one                                                |     ✅      |       ✅        |
-|                   | Permissions, refused by default (`structure`)                                              |     ✅      |       ❌        |
-|                   | Alias allocation that never reuses (`nextColumnKey`)                                       |     ✅      |       ❌        |
-|                   | Dangling-reference report (`danglingColumnKeys`)                                           |     ✅      |       ❌        |
-| **Accessibility** | `role="grid"`, row and column indices, `aria-selected`                                     |     ✅      |       ❌        |
-|                   | Roving tab stop                                                                            |     ✅      |       ❌        |
-|                   | `aria-readonly` and `aria-invalid`                                                         |     ✅      |       ❌        |
-| **Styling**       | 69 CSS variables, inheriting from `--hub-table-*`                                          |     ✅      |       ❌        |
-|                   | Dark mode through the design system                                                        |     ✅      |       ❌        |
-|                   | Sass theming mixin (`hub-spreadsheet-theme`, 64 parameters)                                |     ✅      |       ✅        |
-|                   | Themeable from an ancestor: `:root`, a wrapper class, a route                              |     ✅      |       ✅        |
-| **Forms**         | Per-cell errors from any source (`errors`)                                                 |     ✅      |       ✅        |
-|                   | Signal Forms field-tree mapping (`spreadsheetFieldErrors`)                                 |     ✅      |       ✅        |
-|                   | Form fields opened in a cell show their errors in a tooltip                                |     ✅      |       ❌        |
-|                   | The sheet as one form control, Signal Forms or `[formControl]` (`<hub-spreadsheet-field>`) |     ✅      |       ❌        |
-| **Files**         | Export to a real `.xlsx`, written here (`sheetToXlsx`)                                     |     ✅      |       ✅        |
-|                   | Figures as figures and dates as dates in the workbook                                      |     ✅      |       ✅        |
-|                   | Export to CSV, separator chosen from the decimal mark                                      |     ✅      |       ✅        |
-|                   | What the cell shows, or what the row holds (`values`)                                      |     ✅      |       ✅        |
-|                   | Formulas worked out before writing, `#DIV/0!` and the rest kept                            |     ✅      |       ✅        |
-|                   | Read a workbook back, shared strings and date formats undone                               |     ✅      |       ✅        |
-|                   | Read a CSV back, separator sniffed rather than assumed                                     |     ✅      |       ✅        |
-|                   | Headings matched to the columns, by header or by alias                                     |     ✅      |       ✅        |
-|                   | No dependency for either: the zip and the XML are written here                             |     ✅      |       ✅        |
-|                   | Several sheets, column widths, or an existing workbook edited                              |     ❌      |       ❌        |
-| **Data**          | Structured read by alias (`spreadsheetRecords`)                                            |     ✅      |       ❌        |
-|                   | Repeated-alias detection (`duplicateColumnKeys`)                                           |     ✅      |       ❌        |
+| Category          | Functionality                                                                                  | Implemented | Example Covered |
+| :---------------- | :--------------------------------------------------------------------------------------------- | :---------: | :-------------: |
+| **Cells**         | Value and display text told apart (`value` / `text`)                                           |     ✅      |       ❌        |
+|                   | Secondary line under the value (`secondary`)                                                   |     ✅      |       ❌        |
+|                   | A cell that opens onto something, said by its template (`opened`)                              |     ✅      |       ❌        |
+|                   | Which cells of a column open: all, or answered per row                                         |     ✅      |       ✅        |
+|                   | Per-cell editability (`editable`)                                                              |     ✅      |       ❌        |
+|                   | Muted rendering (`muted`)                                                                      |     ✅      |       ❌        |
+|                   | Tooltip (`title`), in the sheet's tooltip and from the keyboard too                            |     ✅      |       ✅        |
+| **Rows**          | A row opens in place, with its own content (`expansion` / `expandedRow`)                       |     ✅      |       ✅        |
+|                   | A group of rows that folds under its heading (`rowLevel` / `collapsedRows`)                    |     ✅      |       ✅        |
+|                   | Reordering by a grip shown on hover (`reorderableRows`, `rowMoved`)                            |     ✅      |       ✅        |
+|                   | Moved from the keyboard with `Alt+Shift` and an arrow, read out                                |     ✅      |       ✅        |
+| **Columns**       | Stable alias plus visible header (`key` / `header`)                                            |     ✅      |       ❌        |
+|                   | A group of columns that folds away (`level` / `collapsedColumns`)                              |     ✅      |       ✅        |
+|                   | Translated header (`translate`)                                                                |     ✅      |       ❌        |
+|                   | Value kinds: text, number, currency (`kind`)                                                   |     ✅      |       ❌        |
+|                   | Alignment (`align`)                                                                            |     ✅      |       ❌        |
+|                   | Minimum width (`minWidth`)                                                                     |     ✅      |       ❌        |
+|                   | Header hidden from sight but not from screen readers                                           |     ✅      |       ❌        |
+|                   | Column kinds: text, number, currency, date, boolean, select                                    |     ✅      |       ✅        |
+|                   | A closed list in the cell, refusing what is not on it                                          |     ✅      |       ✅        |
+|                   | A retired option stays readable and choosable on rows holding it                               |     ✅      |       ✅        |
+|                   | A checkbox that turns over in one click                                                        |     ✅      |       ✅        |
+|                   | A hint in an empty cell, on hover (`placeholder`)                                              |     ✅      |       ✅        |
+|                   | A hint a cell carries of its own, over the column's                                            |     ✅      |       ✅        |
+|                   | A second value after the main one, from a short list (`append`): shown, copied, pasted, filled |     ✅      |       ✅        |
+|                   | `Alt` + `Down` opens the append's list; the choice arrives as a `commit` keyed by `append.key` |     ✅      |       ✅        |
+| **Editing**       | Type to replace the cell                                                                       |     ✅      |       ❌        |
+|                   | `F2` / `Enter` open the editor keeping the value                                               |     ✅      |       ❌        |
+|                   | Two clicks to edit, or one (`editOn`)                                                          |     ✅      |       ✅        |
+|                   | A list or a date field comes up already open                                                   |     ✅      |       ✅        |
+|                   | The character that opened the cell lands in the editor                                         |     ✅      |       ✅        |
+|                   | A cell shows what it opens onto, in hand or under the pointer                                  |     ✅      |       ✅        |
+|                   | One click on that mark opens the cell                                                          |     ✅      |       ✅        |
+|                   | `Alt` + `Down` opens a list or a date from the keyboard                                        |     ✅      |       ✅        |
+|                   | `Enter` commits and moves down, `Tab` commits and moves right                                  |     ✅      |       ❌        |
+|                   | `Escape` reverts                                                                               |     ✅      |       ❌        |
+|                   | Editor stays open and marked when the value does not parse                                     |     ✅      |       ❌        |
+|                   | Text that does not parse kept in the cell on leaving it (`invalidDrafts`)                      |     ✅      |       ✅        |
+|                   | Numbers read in the reader's own convention (`decimalMark`)                                    |     ✅      |       ❌        |
+|                   | Input-method safe (composition and the legacy `229`)                                           |     ✅      |       ❌        |
+|                   | Replaceable editor per column (`hubSpreadsheetEditor`)                                         |     ✅      |       ✅        |
+|                   | Keys typed into it, or into the open row, are left to it                                       |     ✅      |       ✅        |
+|                   | It closes on `Escape`, on `Tab` and on leaving it (`draft`)                                    |     ✅      |       ✅        |
+|                   | Cells drawn by the host per column (`hubSpreadsheetCell`)                                      |     ✅      |       ✅        |
+|                   | …keeping the box of a yes/no column and the arrow of a list or date                            |     ✅      |       ✅        |
+|                   | A box in a yes/no column's header that ticks every row (`checkAll`)                            |     ✅      |       ✅        |
+|                   | Control adapter for every list column (`provideHubSpreadsheetControls`)                        |     ✅      |       ✅        |
+|                   | A `hub-select`, or any picker, inside a cell                                                   |     ✅      |       ✅        |
+|                   | Per-cell validation (`errors`)                                                                 |     ✅      |       ✅        |
+|                   | The message in a danger tooltip, on hover or keyboard focus                                    |     ✅      |       ✅        |
+|                   | Formulas against the column aliases (`formulas`)                                               |     ✅      |       ✅        |
+|                   | Whole-column reads, circles caught and shown as `#CYCLE!`                                      |     ✅      |       ✅        |
+|                   | Coordinates and ranges (`B3`, `SUM(A1:A4)`), moved with the sheet                              |     ✅      |       ✅        |
+|                   | Suggestions while writing one, and aliases on the headers                                      |     ✅      |       ✅        |
+|                   | A formula fixed on the column (`columns[].formula`)                                            |     ✅      |       ✅        |
+| **Navigation**    | Arrows, `Home` / `End`, `Ctrl+Home` / `Ctrl+End`                                               |     ✅      |       ❌        |
+|                   | `Page Up` / `Page Down` (`pageSize`)                                                           |     ✅      |       ❌        |
+|                   | `Tab` falls onto the next row at the edge                                                      |     ✅      |       ❌        |
+|                   | Only the rows in view, for a long sheet (`virtual`)                                            |     ✅      |       ✅        |
+|                   | Only the columns in view, for a wide one                                                       |     ✅      |       ✅        |
+| **Selection**     | Rectangular range, extended with shift or by dragging                                          |     ✅      |       ❌        |
+|                   | `Ctrl+A`, `Ctrl+Space`, `Shift+Space`                                                          |     ✅      |       ❌        |
+|                   | `Delete` / `Backspace` empty a selection of several cells (`cleared`)                          |     ✅      |       ❌        |
+|                   | `Delete` / `Backspace` on one cell open its editor empty                                       |     ✅      |       ✅        |
+|                   | Cursor and selection drawn only while the sheet holds the focus                                |     ✅      |       ✅        |
+|                   | Disjoint selections (`Ctrl`-click a second block)                                              |     ✅      |       ✅        |
+|                   | `Delete` empties every block; the cursor stays in the last one                                 |     ✅      |       ✅        |
+|                   | A copy only when the blocks make a table, refused otherwise                                    |     ✅      |       ❌        |
+|                   | The fill handle dropped while more than one block is picked                                    |     ✅      |       ✅        |
+| **Clipboard**     | Copy and cut as `text/plain` and `text/html`                                                   |     ✅      |       ❌        |
+|                   | Paste from Excel and Google Sheets                                                             |     ✅      |       ❌        |
+|                   | A paste longer than the sheet asks for the rows it needs                                       |     ✅      |       ✅        |
+|                   | Raw number recovered from the HTML flavour                                                     |     ✅      |       ❌        |
+|                   | Quoting honoured both ways (tabs and newlines inside a cell)                                   |     ✅      |       ❌        |
+|                   | Skipped and rejected values counted and reported                                               |     ✅      |       ❌        |
+| **Merged cells**  | Declared blocks drawn once, with `rowspan` / `colspan`                                         |     ✅      |       ❌        |
+|                   | Cursor lands on the block, never inside it                                                     |     ✅      |       ❌        |
+|                   | A selection that would clip a block grows to contain it                                        |     ✅      |       ❌        |
+|                   | Merging and splitting from the sheet (`mergeable`)                                             |     ✅      |       ✅        |
+|                   | Its entries in the right-click menu, and only when they apply                                  |     ✅      |       ✅        |
+| **Columns**       | Resizing by dragging (`resizableColumns`, `columnWidths`)                                      |     ✅      |       ✅        |
+|                   | Reordering by dragging (`reorderableColumns`, `columnMoved`)                                   |     ✅      |       ✅        |
+| **Menu**          | Right-click menu of structural changes (`contextMenu`)                                         |     ✅      |       ✅        |
+|                   | Only what the permissions allow, never opened empty                                            |     ✅      |       ✅        |
+|                   | Eight bundled locales for its own labels                                                       |     ✅      |       ❌        |
+| **Fill**          | Fill handle at the corner of the selection (`fillHandle`)                                      |     ✅      |       ✅        |
+|                   | `Ctrl+D` / `Cmd+D` fills down the selection                                                    |     ✅      |       ✅        |
+|                   | Number and numbered-text series continued                                                      |     ✅      |       ✅        |
+|                   | A drag reported as one gesture (`filled`)                                                      |     ✅      |       ✅        |
+| **History**       | Undo and redo asked for (`undoRequested` / `redoRequested`)                                    |     ✅      |       ✅        |
+|                   | Availability told to the sheet (`canUndo` / `canRedo`)                                         |     ✅      |       ✅        |
+|                   | A paste or a fill is one step                                                                  |     ✅      |       ✅        |
+| **Panes**         | Frozen header                                                                                  |     ✅      |       ❌        |
+|                   | Frozen columns (`frozenColumns`)                                                               |     ✅      |       ❌        |
+|                   | Frozen rows (`frozenRows`)                                                                     |     ✅      |       ❌        |
+| **Save state**    | Five states, drawn as a bar (`states`)                                                         |     ✅      |       ❌        |
+|                   | `aria-busy` while saving                                                                       |     ✅      |       ❌        |
+| **Structure**     | Insert and delete requests (`insertRequested` / `deleteRequested`)                             |     ✅      |       ❌        |
+|                   | The cursor put on a cell from code, waiting for a new row (`focusCell`)                        |     ✅      |       ✅        |
+|                   | An empty row stands as tall as a filled one                                                    |     ✅      |       ✅        |
+|                   | Permissions, refused by default (`structure`)                                                  |     ✅      |       ❌        |
+|                   | Alias allocation that never reuses (`nextColumnKey`)                                           |     ✅      |       ❌        |
+|                   | Dangling-reference report (`danglingColumnKeys`)                                               |     ✅      |       ❌        |
+| **Accessibility** | `role="grid"`, row and column indices, `aria-selected`                                         |     ✅      |       ❌        |
+|                   | Roving tab stop                                                                                |     ✅      |       ❌        |
+|                   | `aria-readonly` and `aria-invalid`                                                             |     ✅      |       ❌        |
+| **Styling**       | 69 CSS variables, inheriting from `--hub-table-*`                                              |     ✅      |       ❌        |
+|                   | Dark mode through the design system                                                            |     ✅      |       ❌        |
+|                   | Sass theming mixin (`hub-spreadsheet-theme`, 64 parameters)                                    |     ✅      |       ✅        |
+|                   | Themeable from an ancestor: `:root`, a wrapper class, a route                                  |     ✅      |       ✅        |
+| **Forms**         | Per-cell errors from any source (`errors`)                                                     |     ✅      |       ✅        |
+|                   | Signal Forms field-tree mapping (`spreadsheetFieldErrors`)                                     |     ✅      |       ✅        |
+|                   | Form fields opened in a cell show their errors in a tooltip                                    |     ✅      |       ❌        |
+|                   | The sheet as one form control, Signal Forms or `[formControl]` (`<hub-spreadsheet-field>`)     |     ✅      |       ❌        |
+| **Files**         | Export to a real `.xlsx`, written here (`sheetToXlsx`)                                         |     ✅      |       ✅        |
+|                   | Figures as figures and dates as dates in the workbook                                          |     ✅      |       ✅        |
+|                   | Export to CSV, separator chosen from the decimal mark                                          |     ✅      |       ✅        |
+|                   | What the cell shows, or what the row holds (`values`)                                          |     ✅      |       ✅        |
+|                   | Formulas worked out before writing, `#DIV/0!` and the rest kept                                |     ✅      |       ✅        |
+|                   | Read a workbook back, shared strings and date formats undone                                   |     ✅      |       ✅        |
+|                   | Read a CSV back, separator sniffed rather than assumed                                         |     ✅      |       ✅        |
+|                   | Headings matched to the columns, by header or by alias                                         |     ✅      |       ✅        |
+|                   | No dependency for either: the zip and the XML are written here                                 |     ✅      |       ✅        |
+|                   | Several sheets, column widths, or an existing workbook edited                                  |     ❌      |       ❌        |
+| **Data**          | Structured read by alias (`spreadsheetRecords`)                                                |     ✅      |       ❌        |
+|                   | Repeated-alias detection (`duplicateColumnKeys`)                                               |     ✅      |       ❌        |
 
 ## Not here yet
 
@@ -145,28 +147,29 @@ do not have no table to write. Excel refuses the same command for the same reaso
 
 ## Examples
 
-Twenty-one, all on the [documentation page](https://hubui.dev/en/spreadsheet/examples):
+Twenty-two, all on the [documentation page](https://hubui.dev/en/spreadsheet/examples):
 
-| Example                        | What it is for                                                            |
-| :----------------------------- | :------------------------------------------------------------------------ |
-| An editable sheet              | The keyboard, the selection and a commit that the host writes             |
-| The clipboard                  | Copy out to Excel and paste back in, with the raw figures recovered       |
-| Column kinds and editors       | The kinds the sheet ships, a `hub-select`, and a time field using `draft` |
-| Formulas                       | Aliases and coordinates, the suggestions, and a formula fixed on a column |
-| Cells drawn by the host        | A column of the sheet's own, its box and arrow kept, and a note on a cell |
-| A registered control library   | `provideHubSpreadsheetControls`, so a picker needs no template            |
-| Frozen panes                   | Pinned header, columns and rows                                           |
-| Merged cells                   | Declared blocks, and merging or splitting from the menu                   |
-| Only what is in view           | Ten thousand rows and fifty-two columns                                   |
-| Fill and undo                  | The handle, `Ctrl+D`, the series it continues, and one step per gesture   |
-| Resized and reordered          | Dragging an edge, a header, or a row's grip; `Alt+Shift` with an arrow    |
-| Save state per cell            | The five states, drawn as a bar                                           |
-| Text a cell cannot store       | `invalidDrafts` holding a save back until the text is corrected           |
-| Structural changes             | Insert and delete, a new line that takes the cursor, and a long paste     |
-| Signal Forms                   | The sheet as a field tree, with the errors it reports                     |
-| Files                          | Out to `.xlsx` or CSV, and either one read back in                        |
-| Column groups                  | A group of columns that folds away                                        |
-| Row groups                     | A group of rows that folds under its heading                              |
-| Cell hints                     | A hint per column, and one per cell where the column's would be wrong     |
-| Cells that open onto something | A link or a button in a cell, drawn by a template                         |
-| A row opened in place          | The lines behind a total, under its row, with a field of their own        |
+| Example                        | What it is for                                                                 |
+| :----------------------------- | :----------------------------------------------------------------------------- |
+| An editable sheet              | The keyboard, the selection and a commit that the host writes                  |
+| The clipboard                  | Copy out to Excel and paste back in, with the raw figures recovered            |
+| Column kinds and editors       | The kinds the sheet ships, a `hub-select`, and a time field using `draft`      |
+| Formulas                       | Aliases and coordinates, the suggestions, and a formula fixed on a column      |
+| Cells drawn by the host        | A column of the sheet's own, its box and arrow kept, and a note on a cell      |
+| A registered control library   | `provideHubSpreadsheetControls`, so a picker needs no template                 |
+| Frozen panes                   | Pinned header, columns and rows                                                |
+| Merged cells                   | Declared blocks, and merging or splitting from the menu                        |
+| Only what is in view           | Ten thousand rows and fifty-two columns                                        |
+| Fill and undo                  | The handle, `Ctrl+D`, the series it continues, and one step per gesture        |
+| Resized and reordered          | Dragging an edge, a header, or a row's grip; `Alt+Shift` with an arrow         |
+| Save state per cell            | The five states, drawn as a bar                                                |
+| Text a cell cannot store       | `invalidDrafts` holding a save back until the text is corrected                |
+| Structural changes             | Insert and delete, a new line that takes the cursor, and a long paste          |
+| Signal Forms                   | The sheet as a field tree, with the errors it reports                          |
+| Files                          | Out to `.xlsx` or CSV, and either one read back in                             |
+| Column groups                  | A group of columns that folds away                                             |
+| Row groups                     | A group of rows that folds under its heading                                   |
+| Cell hints                     | A hint per column, and one per cell where the column's would be wrong          |
+| Appended values                | A quantity with its unit and a discount with its kind, each picked from a list |
+| Cells that open onto something | A link or a button in a cell, drawn by a template                              |
+| A row opened in place          | The lines behind a total, under its row, with a field of their own             |

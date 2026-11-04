@@ -159,6 +159,9 @@
 								[attr.aria-colspan]="colSpanOf(rowIndex, colIndex)"
 								[attr.aria-selected]="isSelected(rowIndex, colIndex)"
 								[attr.aria-readonly]="!editable || null"
+								[attr.aria-keyshortcuts]="
+									opensAppendList(colIndex) && appendOf(rowIndex, colIndex)?.editable ? 'Alt+ArrowDown' : null
+								"
 								[attr.aria-invalid]="(isActive(rowIndex, colIndex) && invalid()) || error ? true : null"
 								[attr.aria-busy]="state === 'saving' || null"
 								[hubTooltip]="error ?? cell.title ?? ''"
@@ -292,6 +295,46 @@
 									ringed and explained by the cell's message, so it is not mistaken for gone. -->
 										@let unsaved = invalidDraftOf(rowIndex, colIndex);
 										<span class="hub-spreadsheet__value">{{ unsaved ?? displayOf(cell, column) }}</span>
+
+										@if (appendOf(rowIndex, colIndex); as part) {
+											<!-- The appended value sits right after the main one, in a quieter tone. An
+										empty one on a cell that can take it is only a hint, shown while the cell is
+										hovered or active, so a reader can find where to set it. Pressing it opens
+										the list; the keyboard reaches the same list with Alt and the down arrow
+										through the cell, so it adds no tab stop of its own. -->
+											@if (isAppendOpen(rowIndex, colIndex)) {
+												<select
+													class="hub-spreadsheet__append-select"
+													[attr.aria-label]="column.append!.label"
+													(mousedown)="$event.stopPropagation()"
+													(mouseup)="$event.stopPropagation()"
+													(change)="onAppendChange($event, rowIndex, colIndex)"
+													(keydown)="onAppendKeydown($event)"
+													(blur)="closeAppend()"
+												>
+													<option value="" [selected]="part.value === null"></option>
+													@for (option of column.append!.options; track $index) {
+														<option
+															[value]="$index"
+															[selected]="option.value === part.value"
+															[disabled]="option.disabled && option.value !== part.value"
+														>
+															{{ option.label }}
+														</option>
+													}
+												</select>
+											} @else if (part.label || part.editable) {
+												<span
+													class="hub-spreadsheet__append"
+													[class.hub-spreadsheet__append--hint]="!part.label"
+													[class.hub-spreadsheet__append--editable]="part.editable"
+													[attr.aria-hidden]="part.label ? null : 'true'"
+													(mousedown)="onAppendDown($event, rowIndex, colIndex)"
+													(mouseup)="$event.stopPropagation()"
+													>&ngsp;{{ part.label || column.append!.label }}</span
+												>
+											}
+										}
 
 										@if (
 											unsaved === undefined &&

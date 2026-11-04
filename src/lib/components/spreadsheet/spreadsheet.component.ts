@@ -57,7 +57,7 @@ import {
 	PointerDragSession
 } from 'ng-hub-ui-utils';
 import { locale as englishLabels } from '../../assets/i18n/en';
-import { displayValue, isTruthy, parseForColumn } from '../../columns/cell-values';
+import { appendColumn, appendLabel, displayValue, isTruthy, parseForColumn, splitAppend } from '../../columns/cell-values';
 import { HubSpreadsheetEditorContext, HubSpreadsheetEditorDirective } from './spreadsheet-editor.directive';
 import { HubSpreadsheetCellContext, HubSpreadsheetCellDirective } from './spreadsheet-cell.directive';
 import { moveColumn, moveRow, resolveColumnWidth } from '../../columns/column-sizing';
@@ -944,6 +944,31 @@ export class HubSpreadsheetComponent<TRow> {
 			})
 		);
 	});
+
+	/**
+	 * The appended value of every cell whose column has one, null elsewhere.
+	 *
+	 * Kept apart from `grid` so the cell shape owners return stays untouched. An appended value is
+	 * editable on its own terms: a locked quantity can still take a unit, and the reverse.
+	 */
+	private readonly appendGrid = computed(() => {
+		const columns = this.columns();
+
+		return this.rows().map((row) =>
+			columns.map((column) => {
+				if (!column.append) {
+					return null;
+				}
+
+				const { value, editable } = column.append.cell(row);
+
+				return { value, label: appendLabel(value, column.append), editable: !!editable && !this.readonly() };
+			})
+		);
+	});
+
+	/** The cell whose appended list is open, if any. */
+	private readonly appendOpen = signal<HubGridCoords | null>(null);
 
 	/** Which suggestion the keyboard is on, or -1 when the reader has not moved into the list. */
 	private readonly suggestionAt = signal(-1);
@@ -2528,6 +2553,21 @@ export class HubSpreadsheetComponent<TRow> {
 			return;
 		}
 
+		if (
+			event.altKey &&
+			!event.shiftKey &&
+			!event.ctrlKey &&
+			!event.metaKey &&
+			event.key === 'ArrowDown' &&
+			this.opensAppendList(active.col) &&
+			this.appendOf(active.row, active.col)?.editable
+		) {
+			event.preventDefault();
+			this.openAppend(active.row, active.col);
+
+			return;
+		}
+
 		const intent = resolveGridIntent(event, {
 			pageSize: this.pageSize(),
 			editable: !this.readonly()
@@ -3038,29 +3078,39 @@ export class HubSpreadsheetComponent<TRow> {
 		const down = target.bottom - source.bottom;
 		const across = target.right - source.right;
 
-		const write = (row: number, col: number, value: HubSpreadsheetValue) => {
-			skipped += this.collectFill(cells, row, col, value) ? 0 : 1;
+		const write = (row: number, col: number, value: HubSpreadsheetValue, appended?: HubSpreadsheetValue) => {
+			skipped += this.collectFill(cells, row, col, value, appended) ? 0 : 1;
 		};
+
+		// The appended value is not a series: a unit or a kind of discount is repeated, cycling
+		// through the source the way a copied block is tiled.
+		const appendedAt = (row: number, col: number) => this.appendOf(row, col)?.value;
 
 		if (down > 0) {
 			for (let col = source.left; col <= source.right; col++) {
 				const seed: HubSpreadsheetValue[] = [];
+				const size = source.bottom - source.top + 1;
 
 				for (let row = source.top; row <= source.bottom; row++) {
 					seed.push(grid[row][col].value);
 				}
 
-				fillValues(seed, down).forEach((value, offset) => write(source.bottom + 1 + offset, col, value));
+				fillValues(seed, down).forEach((value, offset) =>
+					write(source.bottom + 1 + offset, col, value, appendedAt(source.top + (offset % size), col))
+				);
 			}
 		} else if (across > 0) {
 			for (let row = source.top; row <= source.bottom; row++) {
 				const seed: HubSpreadsheetValue[] = [];
+				const size = source.right - source.left + 1;
 
 				for (let col = source.left; col <= source.right; col++) {
 					seed.push(grid[row][col].value);
 				}
 
-				fillValues(seed, across).forEach((value, offset) => write(row, source.right + 1 + offset, value));
+				fillValues(seed, across).forEach((value, offset) =>
+					write(row, source.right + 1 + offset, value, appendedAt(row, source.left + (offset % size)))
+				);
 			}
 		} else {
 			return;
@@ -3098,7 +3148,9 @@ export class HubSpreadsheetComponent<TRow> {
 
 		for (let col = range.left; col <= range.right; col++) {
 			for (let row = single ? range.top : range.top + 1; row <= range.bottom; row++) {
-				skipped += this.collectFill(cells, row, col, grid[source][col].value) ? 0 : 1;
+				skipped += this.collectFill(cells, row, col, grid[source][col].value, this.appendOf(source, col)?.value)
+					? 0
+					: 1;
 			}
 		}
 
@@ -3106,23 +3158,143 @@ export class HubSpreadsheetComponent<TRow> {
 		this.filled.emit({ cells, range, skipped, rejected: 0 });
 	}
 
+	/** The appended value of a cell, or null when its column has none. */
+	protected appendOf(row: number, col: number): { value: HubSpreadsheetValue; label: string; editable: boolean } | null {
+		return this.appendGrid()[row]?.[col] ?? null;
+	}
+
+	/**
+	 * Whether Alt and the down arrow open the appended list on this column: a text, number or
+	 * currency column the sheet draws itself. A date or a list keeps the key for its own picker, as
+	 * the key opens one thing per cell, and a column drawn by a template shows no append to open.
+	 */
+	protected opensAppendList(col: number): boolean {
+		const column = this.columns()[col];
+		const kind = column?.kind ?? 'text';
+
+		return (
+			!!column?.append &&
+			(kind === 'text' || kind === 'number' || kind === 'currency') &&
+			!column.options?.length &&
+			!this.editorFor(col) &&
+			!this.cellTemplateFor(col)
+		);
+	}
+
+	protected isAppendOpen(row: number, col: number): boolean {
+		const open = this.appendOpen();
+
+		return open?.row === row && open?.col === col;
+	}
+
+	/** Pressing the appended value opens its list on the first click, as the caret of a list does. */
+	protected onAppendDown(event: MouseEvent, row: number, col: number): void {
+		if (event.button !== 0 || !this.appendOf(row, col)?.editable) {
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+		this.leaveEdit();
+		this.moveTo({ row, col }, false);
+		this.openAppend(row, col);
+	}
+
+	/**
+	 * Opens the appended list in place of the appended text, so it is anchored to it, and puts the
+	 * keyboard on it. The list is the platform's own, like a `select` column's.
+	 */
+	private openAppend(row: number, col: number): void {
+		this.appendOpen.set({ row, col });
+
+		afterNextRender(
+			() => {
+				const list = this.#host.nativeElement.querySelector<HTMLElement>('.hub-spreadsheet__append-select');
+
+				list?.focus();
+				revealPicker(list);
+			},
+			{ injector: this.#injector }
+		);
+	}
+
+	protected closeAppend(): void {
+		this.appendOpen.set(null);
+	}
+
+	protected onAppendKeydown(event: KeyboardEvent): void {
+		event.stopPropagation();
+
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			this.closeAppend();
+			this.focusActive();
+		}
+	}
+
+	/** Reports the chosen answer as a change to a column of its own, keyed by the append's key. */
+	protected onAppendChange(event: Event, row: number, col: number): void {
+		const column = this.columns()[col];
+		const part = this.appendOf(row, col);
+		const index = (event.target as HTMLSelectElement).value;
+		const value = index === '' ? null : column.append!.options[Number(index)].value;
+
+		this.closeAppend();
+		this.focusActive();
+
+		if (part && value !== part.value) {
+			this.commit.emit({
+				coords: { row, col },
+				row: this.rows()[row],
+				column: appendColumn(column),
+				cell: { value: part.value, editable: part.editable },
+				value
+			});
+		}
+	}
+
 	/**
 	 * Adds one cell a fill writes to `cells`, leaving out a value it already holds.
 	 *
 	 * @returns false when the cell cannot be written, for the fill to count as skipped.
 	 */
-	private collectFill(cells: HubSpreadsheetCommit<TRow>[], row: number, col: number, value: HubSpreadsheetValue): boolean {
+	private collectFill(
+		cells: HubSpreadsheetCommit<TRow>[],
+		row: number,
+		col: number,
+		value: HubSpreadsheetValue,
+		appended?: HubSpreadsheetValue
+	): boolean {
 		const cell = this.grid()[row]?.[col];
+		const part = appended === undefined ? null : this.appendOf(row, col);
+		const writesPart = !!part?.editable;
 
-		if (!cell?.editable) {
+		if (!cell?.editable && !writesPart) {
 			return false;
 		}
 
-		if (value !== cell.value) {
+		if (cell?.editable && value !== cell.value) {
 			cells.push({ coords: { row, col }, row: this.rows()[row], column: this.columns()[col], cell, value });
 		}
 
+		if (writesPart && appended !== part!.value) {
+			this.collectAppend(cells, row, col, appended!);
+		}
+
 		return true;
+	}
+
+	/** Adds a change to the appended value of a cell, keyed by the append's own key. */
+	private collectAppend(cells: HubSpreadsheetCommit<TRow>[], row: number, col: number, value: HubSpreadsheetValue): void {
+		const part = this.appendOf(row, col)!;
+
+		cells.push({
+			coords: { row, col },
+			row: this.rows()[row],
+			column: appendColumn(this.columns()[col]),
+			cell: { value: part.value, editable: part.editable },
+			value
+		});
 	}
 
 	/**
@@ -3166,7 +3338,7 @@ export class HubSpreadsheetComponent<TRow> {
 			const line: HubSpreadsheetValue[] = [];
 
 			for (const col of table.cols) {
-				line.push(grid[row][col].value);
+				line.push(this.copiedValue(row, col, grid[row][col].value));
 			}
 
 			values.push(line);
@@ -3181,6 +3353,22 @@ export class HubSpreadsheetComponent<TRow> {
 		if (cut) {
 			this.announceCleared();
 		}
+	}
+
+	/**
+	 * What a copied cell carries: its value, followed by the appended label when there is one
+	 * ("2 h"). Written the way the reader types figures, so the same sheet reads it back.
+	 */
+	private copiedValue(row: number, col: number, value: HubSpreadsheetValue): HubSpreadsheetValue {
+		const label = this.appendOf(row, col)?.label;
+
+		if (!label || value === null) {
+			return value;
+		}
+
+		const main = typeof value === 'number' ? String(value).replace('.', this.decimalMark()) : value;
+
+		return `${main} ${label}`;
 	}
 
 	protected onPaste(event: ClipboardEvent): void {
@@ -3627,21 +3815,34 @@ export class HubSpreadsheetComponent<TRow> {
 				const col = at.col + colOffset;
 				const cell = grid[row]?.[col];
 
-				if (!cell?.editable || this.readonly()) {
+				const column = columns[col];
+				const part = this.appendOf(row, col);
+				const split = part && !isFormula(incoming.text) ? splitAppend(incoming.text, column.append!.options) : null;
+				const mainEditable = !!cell?.editable && !this.readonly();
+
+				if (!mainEditable && !(split && part?.editable)) {
 					skipped++;
 					return;
 				}
 
-				const column = columns[col];
-				const value = this.read(incoming, column);
+				if (mainEditable) {
+					// Read the figure the reader saw: the raw number Excel sends is the whole cell, so
+					// a pasted 10 % travels as 0.1 underneath.
+					const text = split ? { text: split.main } : incoming;
+					const value = this.read(text, column, !!part && !split);
 
-				if (value === undefined) {
-					rejected++;
-					return;
+					if (value === undefined) {
+						rejected++;
+						return;
+					}
+
+					if (value !== cell.value) {
+						cells.push({ coords: { row, col }, row: rows[row], column, cell, value });
+					}
 				}
 
-				if (value !== cell.value) {
-					cells.push({ coords: { row, col }, row: rows[row], column, cell, value });
+				if (split && part?.editable && split.value !== part.value) {
+					this.collectAppend(cells, row, col, split.value);
 				}
 			})
 		);
@@ -3673,7 +3874,11 @@ export class HubSpreadsheetComponent<TRow> {
 	 * how the source happened to format it. Only when it is absent is the displayed text parsed,
 	 * and then in this reader's own convention.
 	 */
-	private read(incoming: HubClipboardCell, column: HubSpreadsheetColumn<TRow>): HubSpreadsheetValue | undefined {
+	private read(
+		incoming: HubClipboardCell,
+		column: HubSpreadsheetColumn<TRow>,
+		bareOfAppend = false
+	): HubSpreadsheetValue | undefined {
 		const kind = column.kind ?? 'text';
 
 		// A formula is kept as what it is, whatever the column holds. Read as a figure it is not
@@ -3687,7 +3892,8 @@ export class HubSpreadsheetComponent<TRow> {
 		// depend on how the source happened to format it. For every other kind the text is what
 		// carries the meaning.
 		if (incoming.raw !== undefined && (kind === 'number' || kind === 'currency')) {
-			return incoming.raw;
+			// A trailing token that matched no option has to refuse the value, not hide behind the raw number.
+			return bareOfAppend && /[^\d\s.,+-]/.test(incoming.text) ? undefined : incoming.raw;
 		}
 
 		return parseForColumn(incoming.text, column, this.decimalMark());

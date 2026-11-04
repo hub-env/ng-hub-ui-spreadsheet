@@ -29,6 +29,28 @@ export interface HubSpreadsheetOption {
 }
 
 /**
+ * A second, small value drawn after a cell's main one and chosen from a short list: the unit after
+ * a quantity ("2 h"), the kind of discount after its figure ("10 %").
+ *
+ * It exists so two values that are read as one can be shown, copied and filled as one, while the
+ * owner still stores and receives them separately: every change to the appended value is
+ * reported with `key` as if it were a column of its own.
+ */
+export interface HubSpreadsheetAppend<TRow> {
+	/**
+	 * What the owner receives as `column.key` in `commit`, `pasted` and `filled` for the appended
+	 * value; `cleared` never carries it. Unique among the sheet's column keys, since owners switch on it.
+	 */
+	readonly key: string;
+	/** Accessible name of the appended value and of its list (for example "Unit"). */
+	readonly label: string;
+	/** The answers offered, in order; the cell shows the matching label. */
+	readonly options: readonly HubSpreadsheetOption[];
+	/** The appended value of one row, and whether it can be changed there. */
+	readonly cell: (row: TRow) => { readonly value: HubSpreadsheetValue; readonly editable?: boolean };
+}
+
+/**
  * Where a cell's save stands.
  *
  * `pending` is a value typed into a sheet that is saved as a whole later: written, not yet sent.
@@ -146,6 +168,14 @@ export interface HubSpreadsheetColumn<TRow> {
 	 * nothing to edit. Needs `formulas` on the sheet, as any formula does.
 	 */
 	readonly formula?: string;
+	/**
+	 * A second value drawn after the main one, chosen from a short list.
+	 *
+	 * The clipboard writes both ("2 h"), a paste and a fill carry both, and a change to the
+	 * appended part is reported as a `commit` keyed by `append.key`. Exports write the main value
+	 * only.
+	 */
+	readonly append?: HubSpreadsheetAppend<TRow>;
 	/** What this column shows for a given row. */
 	readonly cell: (row: TRow) => HubSpreadsheetCell;
 }

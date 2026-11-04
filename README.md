@@ -181,6 +181,28 @@ A column says what it is called and how to get a cell out of a row:
 
 **Why two names.** Make the visible name the key and renaming a column means rewriting every reference to it — the mistake Excel made, and the reason a renamed column there breaks formulas across the workbook. Keep them apart and a rename is a rename.
 
+A column can carry an **append**: a second, quieter value drawn after the main one and chosen from a short list, so a quantity and its unit ("2 h") or a discount and its kind ("10 %" / "10 €") read and travel as one column:
+
+```typescript
+{
+	key: 'quantity',
+	header: 'Qty',
+	kind: 'number',
+	cell: (row) => ({ value: row.quantity, editable: true }),
+	append: {
+		key: 'unit',                     // what the owner receives in commit / pasted / filled
+		label: 'Unit',                   // accessible name of the appended value and its list
+		options: [{ value: 'h', label: 'h' }, { value: 'u', label: 'units' }],
+		cell: (row) => ({ value: row.unit, editable: true })
+	}
+}
+```
+
+- **Show.** The label follows the value (the stored value when no option matches). Empty and editable, only the `label` shows as a hint while the cell is hovered or active. Read-only, the label shows with no control.
+- **Change.** Pressing the appended value opens the list; on a number, currency or text column `Alt` + `Down` opens it from the keyboard (the append adds no tab stop). Choosing reports a `commit` whose `column.key` is `append.key`, so an owner that switches on `commit.column.key` needs no new path. `Escape` closes it unchanged.
+- **Clipboard and fill.** Copy writes `2 h` (the value alone when the append is empty). Paste reads a trailing token matching an option label or value, case-insensitive, with or without the space (`10%`, `10 %`, `2 h`), and reports two commits, the second keyed by `append.key`. The figure is read as the text shows it, so a `10%` copied from Excel is 10, not the 0.1 Excel sends underneath. A bare value keeps the append; a number followed by a token on no list counts in `rejected`. A fill repeats the appended value. Each part respects its own `editable`.
+- **Clear and export.** `Delete` and cut empty the main value only: the append is never in `cleared`. CSV and XLSX export the main value alone.
+
 A column can also **hint at an empty cell**: `placeholder` is shown while the pointer rests on a cell that holds nothing, never in place of a value. A **cell can carry one of its own**, for the row where the column's hint would not tell the truth:
 
 ```typescript
@@ -260,26 +282,26 @@ For a cell that opens the row's own detail, put the detail in an `expansion` tem
 
 ## ⌨️ Keyboard
 
-| Key                           | What it does                                                                      |
-| ----------------------------- | --------------------------------------------------------------------------------- |
-| Arrows                        | Move one cell                                                                     |
-| Shift + arrows                | Extend the selection                                                              |
-| `Tab` / `Shift+Tab`           | Move sideways, falling onto the next row at the edge                              |
-| `Home` / `End`                | First and last cell of the row                                                    |
-| `Ctrl+Home` / `Ctrl+End`      | First and last cell of the sheet                                                  |
-| `Page Up` / `Page Down`       | Move by `pageSize` rows                                                           |
-| Any printable character       | Replace the cell and start editing                                                |
-| `F2`, `Enter`                 | Edit, keeping the value                                                           |
-| `Alt` + `Down`                | Open a cell that holds a list or a date                                           |
-| `Alt+Shift` + `Up` / `Down`   | Move the row one place, with `reorderableRows`, and say where it went             |
-| `Enter` / `Tab` while editing | Commit and move down / right                                                      |
-| `Escape` / `Tab` in an editor | Close it as it was / commit what it holds and move right                          |
-| `Escape`                      | Revert the edit, then clear the selection                                         |
-| `Delete` / `Backspace`        | Empty one cell into its editor, or every editable cell of a selection             |
-| `Ctrl+C` / `X` / `V`          | Copy, cut, paste                                                                  |
-| `Ctrl+D` (`Cmd+D` on a Mac)   | Fill down, with `fillHandle`: the top row of the selection into the rows below it |
-| `Ctrl+A`                      | Select the sheet                                                                  |
-| `Ctrl+Space` / `Shift+Space`  | Select the column / the row                                                       |
+| Key                           | What it does                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------- |
+| Arrows                        | Move one cell                                                                               |
+| Shift + arrows                | Extend the selection                                                                        |
+| `Tab` / `Shift+Tab`           | Move sideways, falling onto the next row at the edge                                        |
+| `Home` / `End`                | First and last cell of the row                                                              |
+| `Ctrl+Home` / `Ctrl+End`      | First and last cell of the sheet                                                            |
+| `Page Up` / `Page Down`       | Move by `pageSize` rows                                                                     |
+| Any printable character       | Replace the cell and start editing                                                          |
+| `F2`, `Enter`                 | Edit, keeping the value                                                                     |
+| `Alt` + `Down`                | Open a cell that holds a list or a date, or the append of a number, currency or text column |
+| `Alt+Shift` + `Up` / `Down`   | Move the row one place, with `reorderableRows`, and say where it went                       |
+| `Enter` / `Tab` while editing | Commit and move down / right                                                                |
+| `Escape` / `Tab` in an editor | Close it as it was / commit what it holds and move right                                    |
+| `Escape`                      | Revert the edit, then clear the selection                                                   |
+| `Delete` / `Backspace`        | Empty one cell into its editor, or every editable cell of a selection                       |
+| `Ctrl+C` / `X` / `V`          | Copy, cut, paste                                                                            |
+| `Ctrl+D` (`Cmd+D` on a Mac)   | Fill down, with `fillHandle`: the top row of the selection into the rows below it           |
+| `Ctrl+A`                      | Select the sheet                                                                            |
+| `Ctrl+Space` / `Shift+Space`  | Select the column / the row                                                                 |
 
 ## 📋 The Clipboard
 

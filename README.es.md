@@ -181,6 +181,28 @@ Una columna dice cómo se llama y cómo sacar una celda de una fila:
 
 **Por qué dos nombres.** Si el nombre visible es la clave, renombrar una columna obliga a reescribir todas las referencias a ella: el error que cometió Excel, y la razón de que allí una columna renombrada rompa fórmulas por todo el libro. Manteniéndolos separados, renombrar es solo renombrar.
 
+Una columna puede llevar un **append**: un segundo valor, más discreto, dibujado tras el principal y elegido de una lista corta, de modo que una cantidad y su unidad («2 h») o un descuento y su tipo («10 %» / «10 €») se lean y viajen como una sola columna:
+
+```typescript
+{
+	key: 'quantity',
+	header: 'Cant.',
+	kind: 'number',
+	cell: (row) => ({ value: row.quantity, editable: true }),
+	append: {
+		key: 'unit',                     // lo que recibe el dueño en commit / pasted / filled
+		label: 'Unidad',                 // nombre accesible del valor añadido y de su lista
+		options: [{ value: 'h', label: 'h' }, { value: 'u', label: 'uds.' }],
+		cell: (row) => ({ value: row.unit, editable: true })
+	}
+}
+```
+
+- **Mostrar.** La etiqueta sigue al valor (el valor guardado si ninguna opción coincide). Vacío y editable, solo se ve el `label` como pista al pasar el puntero o al estar activa la celda. De solo lectura, se ve la etiqueta sin control.
+- **Cambiar.** Pulsar el valor añadido abre la lista; en una columna number, currency o text, `Alt` + `Abajo` la abre desde el teclado (el append no añade parada de tabulador). Elegir emite un `commit` con `column.key` igual a `append.key`, así que quien ya hace `switch` sobre `commit.column.key` no necesita código nuevo. `Escape` la cierra sin cambios.
+- **Portapapeles y relleno.** Copiar escribe `2 h` (solo el valor si el append está vacío). Pegar lee un token final que coincida con la etiqueta o el valor de una opción, sin distinguir mayúsculas y con o sin espacio (`10%`, `10 %`, `2 h`), y emite dos commits, el segundo con `append.key`. La cifra se lee tal como la muestra el texto: un `10%` copiado de Excel es 10, no el 0,1 que Excel envía por debajo. Un valor suelto conserva el append; un número seguido de un token que no está en la lista cuenta en `rejected`. Rellenar repite el valor añadido. Cada parte respeta su propio `editable`.
+- **Vaciar y exportar.** `Supr` y cortar vacían solo el valor principal: el append nunca va en `cleared`. CSV y XLSX exportan solo el valor principal.
+
 Una columna también puede **insinuar qué falta en una celda vacía**: `placeholder` se muestra mientras el puntero descansa sobre una celda que no tiene nada, nunca en lugar de un valor. Y **cada celda puede llevar el suyo**, para la fila en la que la pista de la columna no diría la verdad:
 
 ```typescript
@@ -260,26 +282,26 @@ Para una celda que abre el detalle propio de la fila, pon el detalle en una plan
 
 ## ⌨️ Teclado
 
-| Tecla                            | Qué hace                                                                                 |
-| -------------------------------- | ---------------------------------------------------------------------------------------- |
-| Flechas                          | Mover una celda                                                                          |
-| Mayús + flechas                  | Extender la selección                                                                    |
-| `Tab` / `Mayús+Tab`              | Moverse de lado, cayendo en la fila siguiente en el borde                                |
-| `Inicio` / `Fin`                 | Primera y última celda de la fila                                                        |
-| `Ctrl+Inicio` / `Ctrl+Fin`       | Primera y última celda de la hoja                                                        |
-| `Re Pág` / `Av Pág`              | Moverse `pageSize` filas                                                                 |
-| Cualquier carácter imprimible    | Sustituir la celda y empezar a editar                                                    |
-| `F2`, `Intro`                    | Editar conservando el valor                                                              |
-| `Alt` + `Abajo`                  | Abrir una celda que lleva una lista o una fecha                                          |
-| `Alt+Mayús` + `Arriba` / `Abajo` | Mover la fila un puesto, con `reorderableRows`, y decir adónde fue                       |
-| `Intro` / `Tab` al editar        | Confirmar y bajar / avanzar                                                              |
-| `Escape` / `Tab` en tu editor    | Cerrarlo como estaba / confirmar lo que guarda y avanzar                                 |
-| `Escape`                         | Revertir la edición, y después deshacer la selección                                     |
-| `Supr` / `Retroceso`             | Vaciar una celda abriendo su editor, o todas las editables de una selección              |
-| `Ctrl+C` / `X` / `V`             | Copiar, cortar, pegar                                                                    |
-| `Ctrl+D` (`Cmd+D` en un Mac)     | Rellenar hacia abajo, con `fillHandle`: la primera fila de la selección en las de debajo |
-| `Ctrl+A`                         | Seleccionar la hoja                                                                      |
-| `Ctrl+Espacio` / `Mayús+Espacio` | Seleccionar la columna / la fila                                                         |
+| Tecla                            | Qué hace                                                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Flechas                          | Mover una celda                                                                                     |
+| Mayús + flechas                  | Extender la selección                                                                               |
+| `Tab` / `Mayús+Tab`              | Moverse de lado, cayendo en la fila siguiente en el borde                                           |
+| `Inicio` / `Fin`                 | Primera y última celda de la fila                                                                   |
+| `Ctrl+Inicio` / `Ctrl+Fin`       | Primera y última celda de la hoja                                                                   |
+| `Re Pág` / `Av Pág`              | Moverse `pageSize` filas                                                                            |
+| Cualquier carácter imprimible    | Sustituir la celda y empezar a editar                                                               |
+| `F2`, `Intro`                    | Editar conservando el valor                                                                         |
+| `Alt` + `Abajo`                  | Abrir una celda que lleva una lista o una fecha, o el append de una columna number, currency o text |
+| `Alt+Mayús` + `Arriba` / `Abajo` | Mover la fila un puesto, con `reorderableRows`, y decir adónde fue                                  |
+| `Intro` / `Tab` al editar        | Confirmar y bajar / avanzar                                                                         |
+| `Escape` / `Tab` en tu editor    | Cerrarlo como estaba / confirmar lo que guarda y avanzar                                            |
+| `Escape`                         | Revertir la edición, y después deshacer la selección                                                |
+| `Supr` / `Retroceso`             | Vaciar una celda abriendo su editor, o todas las editables de una selección                         |
+| `Ctrl+C` / `X` / `V`             | Copiar, cortar, pegar                                                                               |
+| `Ctrl+D` (`Cmd+D` en un Mac)     | Rellenar hacia abajo, con `fillHandle`: la primera fila de la selección en las de debajo            |
+| `Ctrl+A`                         | Seleccionar la hoja                                                                                 |
+| `Ctrl+Espacio` / `Mayús+Espacio` | Seleccionar la columna / la fila                                                                    |
 
 ## 📋 El portapapeles
 

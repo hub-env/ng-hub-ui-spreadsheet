@@ -92,7 +92,7 @@ export type {
 	HubSpreadsheetControlOption,
 	HubSpreadsheetControlsAdapter
 } from './lib/editors/editor-adapter.types';
-export type { HubSpreadsheetOption } from './lib/models/spreadsheet.types';
+export type { HubSpreadsheetAppend, HubSpreadsheetOption } from './lib/models/spreadsheet.types';
 
 export { locale as enSpreadsheetLocale } from './lib/assets/i18n/en';
 export { locale as esSpreadsheetLocale } from './lib/assets/i18n/es';

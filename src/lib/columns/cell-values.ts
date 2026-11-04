@@ -1,5 +1,10 @@
 import { parseDecimal } from '../clipboard/clipboard-table';
-import { HubSpreadsheetColumn, HubSpreadsheetOption, HubSpreadsheetValue } from '../models/spreadsheet.types';
+import {
+	HubSpreadsheetAppend,
+	HubSpreadsheetColumn,
+	HubSpreadsheetOption,
+	HubSpreadsheetValue
+} from '../models/spreadsheet.types';
 
 /**
  * Turning a stored value into what a cell shows, and turning what was typed back into a value.
@@ -113,4 +118,69 @@ export function isTruthy(value: HubSpreadsheetValue): boolean {
 	}
 
 	return typeof value === 'string' && AFFIRMATIVE.has(value.toLowerCase());
+}
+
+/**
+ * What an appended value shows: its option's label, the raw value when the option is gone (the
+ * same rule as a `select` column, so an old row stays readable), and nothing when it is empty.
+ */
+export function appendLabel<TRow>(value: HubSpreadsheetValue, append: HubSpreadsheetAppend<TRow>): string {
+	if (value === null || value === '') {
+		return '';
+	}
+
+	return append.options.find((option) => option.value === value)?.label ?? String(value);
+}
+
+/**
+ * The appended value dressed as a column of its own.
+ *
+ * Owners already switch on `commit.column.key`; handing them a column-like ref keyed by the
+ * append means they need no new code path for it.
+ */
+export function appendColumn<TRow>(column: HubSpreadsheetColumn<TRow>): HubSpreadsheetColumn<TRow> {
+	const append = column.append as HubSpreadsheetAppend<TRow>;
+
+	return {
+		key: append.key,
+		header: append.label,
+		kind: 'select',
+		options: append.options,
+		cell: (row) => ({ value: append.cell(row).value, editable: append.cell(row).editable })
+	};
+}
+
+/**
+ * Splits a pasted text into its main part and the option it ends with.
+ *
+ * Case-insensitive and indifferent to the space (`10%`, `10 %`), matching either the label or the
+ * stored value. A word-like token only counts when it starts a word, so `5 wh` is not `5` plus
+ * `h`. Returns null when nothing on the list closes the text, which the caller reads as "bare value".
+ */
+export function splitAppend(
+	text: string,
+	options: readonly HubSpreadsheetOption[]
+): { main: string; value: HubSpreadsheetValue } | null {
+	const trimmed = text.trim();
+	const lower = trimmed.toLocaleLowerCase();
+	let best: { main: string; value: HubSpreadsheetValue; length: number } | null = null;
+
+	for (const option of options) {
+		for (const token of [option.label, String(option.value ?? '')]) {
+			const needle = token.trim().toLocaleLowerCase();
+			const head = trimmed.slice(0, trimmed.length - needle.length);
+
+			if (!needle || !lower.endsWith(needle) || !head.trim() || (best && best.length >= needle.length)) {
+				continue;
+			}
+
+			if (/^\p{L}/u.test(needle) && /\p{L}$/u.test(head)) {
+				continue;
+			}
+
+			best = { main: head.trim(), value: option.value, length: needle.length };
+		}
+	}
+
+	return best && { main: best.main, value: best.value };
 }

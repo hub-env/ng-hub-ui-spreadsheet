@@ -2,6 +2,11 @@
 
 This file documents breaking changes and migration steps for `ng-hub-ui-spreadsheet`.
 
+## [22.11.0] - 2026-11-04
+
+No breaking changes. `append` on a column and the `HubSpreadsheetAppend` type are new; nothing was
+renamed or removed.
+
 ## [22.10.0] - 2026-11-04
 
 No breaking changes. One method is new (`focusCell`); nothing was renamed or removed. Four behaviours

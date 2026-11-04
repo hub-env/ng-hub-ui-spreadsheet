@@ -1051,6 +1051,40 @@ $move-grip-reach: 1.2rem;
 	opacity: #{$placeholder-opacity};
 }
 
+// The appended value: a quieter second figure after the main one, at its inline end so the order
+// follows the reading direction. It stays on the value's line (the cell does not wrap). The gap
+// is a real space inside the span, so the cell's text reads "2 h" to assistive technology and to
+// a copy of the page, not "2h".
+$append-color: var(--hub-spreadsheet-append-color, var(--hub-sys-text-muted, #6a737b));
+$append-gap: var(--hub-spreadsheet-append-gap, 0.25em);
+
+.hub-spreadsheet__append {
+	color: #{$append-color};
+
+	&--editable {
+		cursor: pointer;
+	}
+
+	// Nothing set: only a hint for where to set it, while the cell is hovered or active.
+	&--hint {
+		opacity: 0;
+		transition: #{$placeholder-transition};
+	}
+}
+
+.hub-spreadsheet__cell:hover > .hub-spreadsheet__append--hint,
+:host(:focus-within) .hub-spreadsheet__cell--active > .hub-spreadsheet__append--hint {
+	opacity: #{$placeholder-opacity};
+}
+
+.hub-spreadsheet__append-select {
+	margin-inline-start: #{$append-gap};
+	max-inline-size: 100%;
+	padding-block: 0;
+	color: inherit;
+	font: inherit;
+}
+
 .hub-spreadsheet__check {
 	// Sized from the text so a dense sheet keeps its rhythm.
 	inline-size: 1em;

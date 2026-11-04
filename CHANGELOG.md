@@ -1,5 +1,19 @@
 # Changelog
 
+## [22.11.0] - 2026-11-04
+
+### Added
+
+- **`append` on a column** draws a second, quieter value after the main one, chosen from a short list:
+  a quantity and its unit ("2 h"), a discount and its kind ("10 %"). Pressing it opens the list, and
+  on a number, currency or text column `Alt` + `Down` opens it from the keyboard without adding a tab
+  stop. A choice arrives as a `commit` whose `column.key` is `append.key`. Copy writes `2 h`; paste
+  reads a trailing token that matches an option (`10%`, `10 %`, `2 h`) into two commits, taking the
+  figure as the text shows it (a `10%` from Excel is 10, not the 0.1 sent underneath), refuses a
+  number followed by an unknown token, and keeps the append on a bare value; a fill repeats the
+  appended value. `Delete` and cut leave the append alone (it is never in `cleared`), and CSV and
+  XLSX export the main value only. New type `HubSpreadsheetAppend`.
+
 ## [22.10.0] - 2026-11-04
 
 ### Added
