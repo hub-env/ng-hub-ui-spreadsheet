@@ -57,7 +57,10 @@ export interface HubSpreadsheetCell {
 	readonly editable?: boolean;
 	/** Shown in a quieter tone, for a value that comes from somewhere else. */
 	readonly muted?: boolean;
-	/** Said when the pointer rests on the cell. */
+	/**
+	 * Said in the sheet's tooltip when the pointer rests on the cell or the keyboard lands on it.
+	 * A validation message in `errors` takes its place while there is one.
+	 */
 	readonly title?: string | null;
 	/**
 	 * A hint shown in this cell while it is empty, on hover.
@@ -124,6 +127,12 @@ export interface HubSpreadsheetColumn<TRow> {
 	 * whose cells explain themselves and need no name repeated down every row.
 	 */
 	readonly headerHidden?: boolean;
+	/**
+	 * In a yes/no column, a box in the header that ticks every row at once, shown mixed while the
+	 * rows disagree. It ticks them all when any is clear and clears them when all are ticked, and
+	 * reports it as one `filled`, so an owner keeping a history undoes it in one step.
+	 */
+	readonly checkAll?: boolean;
 	/**
 	 * A formula every cell of this column is worked out from, fixed by whoever declared it.
 	 *

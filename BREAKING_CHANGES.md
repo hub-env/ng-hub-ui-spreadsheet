@@ -2,6 +2,23 @@
 
 This file documents breaking changes and migration steps for `ng-hub-ui-spreadsheet`.
 
+## [22.10.0] - 2026-11-04
+
+No breaking changes. One method is new (`focusCell`); nothing was renamed or removed. Four behaviours
+change, and a sheet of yours may have leaned on the old ones:
+
+- **A cell's `title` is no longer a native `title` attribute.** It opens the sheet's tooltip instead.
+  A test or a stylesheet that read `[title]` on a cell finds nothing; read the tooltip, or
+  `aria-describedby`, which points at it while it is open.
+- **A cell template on a yes/no column is now drawn**, beside the box; it used to be ignored. One left
+  on such a column will appear. A template on a list or date column now has the column's arrow drawn
+  over its end, so leave it a little room on that side.
+- **An empty row is as tall as a filled one.** A layout that counted on blank rows being thin gets
+  taller.
+- **Where `structure` allows inserting rows, a paste longer than the sheet emits `insertRequested`**
+  with a `count` that can be more than one. A handler that adds a single row whatever the count gets
+  one row, and the paste fills what fits, as before; handle `count` to get the whole block.
+
 ## [22.9.0] - 2026-11-03
 
 No breaking changes. The public surface only grows: an `invalidDrafts` model, a `draft` function in

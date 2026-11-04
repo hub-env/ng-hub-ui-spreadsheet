@@ -62,6 +62,22 @@
 							{{ column.header }}
 						</span>
 
+						<!-- Ticks or clears the whole column. Its pointer press is its own, so it never
+						starts dragging the header it sits in. -->
+						@if (column.kind === 'boolean' && column.checkAll) {
+							@let checkState = checkAllState(columnIndex);
+							<input
+								class="hub-spreadsheet__check hub-spreadsheet__check-all"
+								type="checkbox"
+								[checked]="checkState === 'on'"
+								[indeterminate]="checkState === 'mixed'"
+								[disabled]="readonly() || !rows().length"
+								[attr.aria-label]="checkAllLabel(column)"
+								(pointerdown)="$event.stopPropagation()"
+								(change)="checkAll(columnIndex)"
+							/>
+						}
+
 						@if (column.subheader) {
 							<small class="hub-spreadsheet__subheader">{{ column.subheader }}</small>
 						}
@@ -128,6 +144,7 @@
 							<!-- Worked out once per cell, and only for the one that is open: the config a
 						registered control adapter is asked for, or null when there is nothing to host. -->
 							@let hosted = editing() && isActive(rowIndex, colIndex) ? hostedControl(rowIndex, colIndex) : null;
+							@let corner = cornerOf(rowIndex, colIndex);
 
 							<td
 								class="hub-spreadsheet__cell"
@@ -144,13 +161,14 @@
 								[attr.aria-readonly]="!editable || null"
 								[attr.aria-invalid]="(isActive(rowIndex, colIndex) && invalid()) || error ? true : null"
 								[attr.aria-busy]="state === 'saving' || null"
-								[attr.title]="error ? null : cell.title"
-								[hubTooltip]="error ?? ''"
+								[hubTooltip]="error ?? cell.title ?? ''"
 								[class.hub-spreadsheet__cell--active]="isActive(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--editing]="editing() && isActive(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--selected]="isSelected(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--pointed]="isPointed(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--end-of-sheet]="reachesEnd(rowIndex, colIndex)"
+								[class.hub-spreadsheet__cell--corner-start]="corner === 'start' || corner === 'both'"
+								[class.hub-spreadsheet__cell--corner-end]="corner === 'end' || corner === 'both'"
 								[class.hub-spreadsheet__cell--filling]="isFillPreview(rowIndex, colIndex)"
 								[class.hub-spreadsheet__cell--readonly]="!editable"
 								[class.hub-spreadsheet__cell--muted]="cell.muted"
@@ -246,6 +264,9 @@
 										/>
 									}
 								} @else {
+									<!-- A yes/no column's box is the sheet's whatever the host draws: it is the
+								editor as much as the display, turned over in one click. A cell template sits
+								beside it. -->
 									@if (column.kind === 'boolean') {
 										<input
 											class="hub-spreadsheet__check"
@@ -256,7 +277,9 @@
 											(change)="toggleBoolean(rowIndex, colIndex)"
 											(click)="$event.stopPropagation()"
 										/>
-									} @else if (cellTemplateFor(colIndex); as own) {
+									}
+
+									@if (cellTemplateFor(colIndex); as own) {
 										<!-- The host draws this column's cells. The value still travels to the
 									clipboard rather than the drawing, and the cell is still what the
 									keyboard is on: the template is inside it, not instead of it. -->
@@ -264,7 +287,7 @@
 											[ngTemplateOutlet]="own.template"
 											[ngTemplateOutletContext]="cellContext(rowIndex, colIndex)"
 										/>
-									} @else {
+									} @else if (column.kind !== 'boolean') {
 										<!-- Text the reader left here unsaved is shown instead of the stored value,
 									ringed and explained by the cell's message, so it is not mistaken for gone. -->
 										@let unsaved = invalidDraftOf(rowIndex, colIndex);
@@ -279,20 +302,21 @@
 												{{ cell.placeholder ?? column.placeholder }}
 											</span>
 										}
+									}
 
-										<!-- Says the cell opens onto a list or a calendar rather than a field, and
-									opens it on one click — as a spreadsheet drops the list of a cell that
-									has one. Shown on the cell the reader is on and on the one under the
-									pointer. Hidden from assistive technology: the keyboard opens the same
-									cell with Alt and the down arrow, and reads the editor itself. -->
-										@if (editable && affordanceOf(column, colIndex); as affordance) {
-											<span
-												class="hub-spreadsheet__affordance"
-												[class.hub-spreadsheet__affordance--date]="affordance === 'date'"
-												aria-hidden="true"
-												(mousedown)="onAffordanceDown($event, rowIndex, colIndex)"
-											></span>
-										}
+									<!-- Says the cell opens onto a list or a calendar rather than a field, and
+								opens it on one click — as a spreadsheet drops the list of a cell that has
+								one. Shown on the cell the reader is on and on the one under the pointer,
+								whether the sheet or a template draws the value. Hidden from assistive
+								technology: the keyboard opens the same cell with Alt and the down arrow,
+								and reads the editor itself. -->
+									@if (editable && affordanceOf(column, colIndex); as affordance) {
+										<span
+											class="hub-spreadsheet__affordance"
+											[class.hub-spreadsheet__affordance--date]="affordance === 'date'"
+											aria-hidden="true"
+											(mousedown)="onAffordanceDown($event, rowIndex, colIndex)"
+										></span>
 									}
 
 									@if (cell.secondary) {

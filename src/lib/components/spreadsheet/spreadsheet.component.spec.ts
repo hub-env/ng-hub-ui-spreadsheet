@@ -1,5 +1,6 @@
 import { Component, ViewContainerRef, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { HubGridCoords, HubGridRange, HubGridSpan, provideHubTranslation } from 'ng-hub-ui-utils';
 import { locale as enLocale } from '../../assets/i18n/en';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -368,7 +369,7 @@ describe('HubSpreadsheetComponent', () => {
 		 * nothing in flow, so the row collapses unless the cell is given a height — a minimum will
 		 * not do it, because a table cell ignores one.
 		 */
-		it('keeps the last column and the open row from collapsing', () => {
+		it('keeps the last column, an empty row and the open row from collapsing', () => {
 			const css = Array.from(document.querySelectorAll('style'))
 				.map((style) => style.textContent ?? '')
 				.join('\n');
@@ -376,13 +377,14 @@ describe('HubSpreadsheetComponent', () => {
 			expect(css).toMatch(/--hub-spreadsheet-cell-edge-inline:\s*0px/);
 			expect(css).not.toMatch(/--hub-spreadsheet-cell-edge-inline:\s*0\s*[;}]/);
 
-			// Every rule that names the editing cell; the compound cursor rule is one of them, so the
-			// one that sets the height is picked out by what it declares.
-			const rules = Array.from(css.matchAll(/\.hub-spreadsheet__cell--editing[^{}]*\{[^}]*\}/g)).map((match) => match[0]);
+			// The plain body cell, encapsulated or not: the floor is on every cell, empty or being
+			// edited, and it is a height because a table cell ignores a minimum.
+			const rules = Array.from(css.matchAll(/\.hub-spreadsheet__cell(?:\[[^\]]*\])?\s*\{[^}]*\}/g)).map(
+				(match) => match[0]
+			);
 			const rule = rules.find((candidate) => /[^-]block-size:/.test(candidate)) ?? '';
 
-			expect(rules.length).toBeGreaterThan(0);
-			expect(rule).toMatch(/[^-]block-size:/);
+			expect(rule).toMatch(/[^-]block-size:\s*calc\(/);
 			expect(rule).not.toContain('min-block-size');
 		});
 
@@ -1514,6 +1516,56 @@ describe('HubSpreadsheetComponent', () => {
 			expect(drawn.nativeElement.querySelector('[data-cell="0-1"] .hub-spreadsheet__value')).not.toBeNull();
 		});
 
+		it('keeps the box of a yes/no column and the arrow of a list column beside the template', async () => {
+			@Component({
+				standalone: true,
+				imports: [HubSpreadsheetComponent, HubSpreadsheetCellDirective],
+				template: `
+					<hub-spreadsheet [rows]="rows()" [columns]="columns" [rowKey]="rowKey" (commit)="commits.push($event)">
+						<ng-template hubSpreadsheetCell="done"><button class="apply" type="button">All</button></ng-template>
+						<ng-template hubSpreadsheetCell="tax" let-value
+							><span class="tax">{{ value }}</span></ng-template
+						>
+					</hub-spreadsheet>
+				`
+			})
+			class ControlsHost {
+				readonly rows = signal<Line[]>(lines());
+				readonly rowKey = (row: Line) => row.id;
+				readonly columns: HubSpreadsheetColumn<Line>[] = [
+					{ key: 'done', header: 'Hecho', kind: 'boolean', cell: () => ({ value: 0, editable: true }) },
+					{
+						key: 'tax',
+						header: 'IVA',
+						kind: 'select',
+						options: [{ value: 'g', label: 'General' }],
+						cell: () => ({ value: 'g', editable: true })
+					}
+				];
+				commits: HubSpreadsheetCommit<Line>[] = [];
+			}
+
+			await TestBed.resetTestingModule()
+				.configureTestingModule({ imports: [ControlsHost], providers: [provideHubTranslation()] })
+				.compileComponents();
+
+			const drawn = TestBed.createComponent(ControlsHost);
+			const at = (selector: string) => drawn.nativeElement.querySelector(selector) as HTMLElement | null;
+
+			drawn.detectChanges();
+
+			expect(at('[data-cell="0-0"] .apply')).not.toBeNull();
+			expect(at('[data-cell="0-1"] .tax')?.textContent).toBe('g');
+			expect(at('[data-cell="0-1"] .hub-spreadsheet__affordance')).not.toBeNull();
+
+			const box = at('[data-cell="0-0"] input.hub-spreadsheet__check') as HTMLInputElement;
+
+			box.click();
+			drawn.detectChanges();
+
+			expect(drawn.componentInstance.commits.at(-1)?.value).toBe(1);
+		});
+
 		it('tells the template whether it is the cell the reader is on', async () => {
 			@Component({
 				standalone: true,
@@ -1815,6 +1867,61 @@ describe('HubSpreadsheetComponent', () => {
 			expect(host.pastes[0].cells.map((c) => c.value)).toEqual(['Varilla', 1500, 'Abrazadera', 2750]);
 		});
 
+		describe('a block longer than the sheet', () => {
+			function pasteFourRowsAtTheLast(): void {
+				click(2, 0);
+				fixture.nativeElement
+					.querySelector('.hub-spreadsheet__sink')
+					.dispatchEvent(clipboardEvent('paste', { 'text/plain': 'Uno\nDos\nTres\nCuatro' }));
+				fixture.detectChanges();
+			}
+
+			it('asks for the rows it runs past and is pasted whole once they arrive', async () => {
+				const sheet: HubSpreadsheetComponent<Line> = fixture.debugElement.query(
+					By.directive(HubSpreadsheetComponent)
+				).componentInstance;
+
+				// An owner that adds the rows as it is asked, which is what the request is for.
+				sheet.insertRequested.subscribe(({ count }) =>
+					host.rows.update((rows) => [
+						...rows,
+						...Array.from({ length: count }, (_, i) => ({ id: `n${i}`, product: '', units: null, price: null }))
+					])
+				);
+				host.structure.set({ insertRows: true });
+				fixture.detectChanges();
+				pasteFourRowsAtTheLast();
+				await fixture.whenStable();
+
+				expect(host.inserts).toEqual([{ axis: 'row', at: 3, count: 3 }]);
+				expect(host.pastes).toHaveLength(1);
+				expect(host.pastes[0].cells.map((c) => [c.coords.row, c.value])).toEqual([
+					[2, 'Uno'],
+					[3, 'Dos'],
+					[4, 'Tres'],
+					[5, 'Cuatro']
+				]);
+				expect(host.pastes[0].skipped).toBe(0);
+			});
+
+			it('pastes what fits when the owner adds no rows', async () => {
+				host.structure.set({ insertRows: true });
+				fixture.detectChanges();
+				pasteFourRowsAtTheLast();
+				await fixture.whenStable();
+
+				expect(host.pastes).toHaveLength(1);
+				expect(host.pastes[0].skipped).toBe(3);
+			});
+
+			it('asks for nothing where rows cannot be added', () => {
+				pasteFourRowsAtTheLast();
+
+				expect(host.inserts).toHaveLength(0);
+				expect(host.pastes[0].skipped).toBe(3);
+			});
+		});
+
 		it('prefers the raw number the HTML carries over the formatted text', () => {
 			click(0, 1);
 
@@ -1934,6 +2041,177 @@ describe('HubSpreadsheetComponent', () => {
 			press('y', { ctrlKey: true });
 
 			expect(host.redos).toBe(2);
+		});
+	});
+
+	describe('the cells in the bottom corners of the frame', () => {
+		const corner = (row: number, col: number) =>
+			['start', 'end'].filter((side) => cell(row, col).classList.contains(`hub-spreadsheet__cell--corner-${side}`));
+
+		it('take the rounding at the leading and the trailing end of the last row, and nowhere else', () => {
+			expect(corner(2, 0)).toEqual(['start']);
+			expect(corner(2, 2)).toEqual(['end']);
+			expect(corner(2, 1)).toEqual([]);
+			expect(corner(1, 0)).toEqual([]);
+		});
+
+		it('give it up while the last row is open, since its detail sits below it', () => {
+			host.expandedRow.set('c');
+			fixture.detectChanges();
+
+			expect(corner(2, 0)).toEqual([]);
+		});
+	});
+
+	describe('the header box of a yes/no column', () => {
+		@Component({
+			standalone: true,
+			imports: [HubSpreadsheetComponent],
+			template: `
+				<hub-spreadsheet
+					[rows]="rows()"
+					[columns]="columns"
+					[rowKey]="rowKey"
+					[readonly]="readonly()"
+					(filled)="fills.push($event)"
+				/>
+			`
+		})
+		class CheckAllHost {
+			readonly rows = signal([
+				{ id: 'a', sent: 1 },
+				{ id: 'b', sent: 0 }
+			]);
+			readonly readonly = signal(false);
+			readonly rowKey = (row: { id: string }) => row.id;
+			readonly columns: HubSpreadsheetColumn<{ id: string; sent: number }>[] = [
+				{
+					key: 'sent',
+					header: 'Sent',
+					kind: 'boolean',
+					checkAll: true,
+					cell: (row) => ({ value: row.sent, editable: true })
+				}
+			];
+			fills: HubSpreadsheetPaste<{ id: string; sent: number }>[] = [];
+		}
+
+		let boxed: ComponentFixture<CheckAllHost>;
+		const box = (): HTMLInputElement => boxed.nativeElement.querySelector('th input.hub-spreadsheet__check-all');
+
+		beforeEach(async () => {
+			await TestBed.resetTestingModule()
+				.configureTestingModule({ imports: [CheckAllHost], providers: [provideHubTranslation()] })
+				.compileComponents();
+
+			boxed = TestBed.createComponent(CheckAllHost);
+			boxed.detectChanges();
+		});
+
+		it('shows mixed while the rows disagree, and is named after its column', () => {
+			expect(box().indeterminate).toBe(true);
+			expect(box().checked).toBe(false);
+			expect(box().getAttribute('aria-label')).toBe('Sent: every row');
+		});
+
+		it('ticks every row as one filled, and clears them once all are ticked', () => {
+			box().click();
+			boxed.detectChanges();
+
+			expect(boxed.componentInstance.fills).toHaveLength(1);
+			expect(boxed.componentInstance.fills[0].cells.map((c) => [c.coords.row, c.value])).toEqual([[1, 1]]);
+
+			boxed.componentInstance.rows.set([
+				{ id: 'a', sent: 1 },
+				{ id: 'b', sent: 1 }
+			]);
+			boxed.detectChanges();
+
+			expect(box().checked).toBe(true);
+			expect(box().indeterminate).toBe(false);
+
+			box().click();
+			boxed.detectChanges();
+
+			expect(boxed.componentInstance.fills.at(-1)?.cells.map((c) => c.value)).toEqual([0, 0]);
+		});
+
+		it('is not offered for writing on a read-only sheet', () => {
+			boxed.componentInstance.readonly.set(true);
+			boxed.detectChanges();
+
+			expect(box().disabled).toBe(true);
+		});
+	});
+
+	describe('a cell asked for from code', () => {
+		function sheet(): HubSpreadsheetComponent<Line> {
+			return fixture.debugElement.query(By.directive(HubSpreadsheetComponent)).componentInstance;
+		}
+
+		it('waits for a row being added, then puts the cursor and the keyboard on its first cell', async () => {
+			// Attached, or nothing can hold the focus.
+			document.body.appendChild(fixture.nativeElement);
+			sheet().focusCell('d');
+			host.rows.update((rows) => [...rows, { id: 'd', product: '', units: null, price: null }]);
+			fixture.detectChanges();
+			await fixture.whenStable();
+
+			expect(cell(3, 0).getAttribute('tabindex')).toBe('0');
+			expect(document.activeElement).toBe(cell(3, 0));
+
+			press('T');
+
+			expect(editor()?.value).toBe('T');
+			fixture.nativeElement.remove();
+		});
+
+		it('goes to the column it names', () => {
+			sheet().focusCell('b', 'units');
+			fixture.detectChanges();
+
+			expect(cell(1, 1).getAttribute('tabindex')).toBe('0');
+		});
+	});
+
+	describe('filling down from the keyboard', () => {
+		beforeEach(() => {
+			host.fillHandle.set(true);
+			fixture.detectChanges();
+		});
+
+		it('copies the top row of the selection into the rows below it, as one filled', () => {
+			click(0, 1);
+			press('ArrowDown', { shiftKey: true });
+			press('ArrowDown', { shiftKey: true });
+			press('d', { ctrlKey: true });
+
+			expect(host.fills).toHaveLength(1);
+			expect(host.fills[0].cells.map((c) => [c.coords.row, c.value])).toEqual([
+				[1, 100],
+				[2, 100]
+			]);
+			expect(host.fills[0].range).toEqual({ top: 0, bottom: 2, left: 1, right: 1 });
+		});
+
+		it('takes the row above into a selection one row tall, with Cmd on a Mac', () => {
+			click(1, 0);
+			press('d', { metaKey: true });
+
+			expect(host.fills.at(-1)?.cells.map((c) => c.value)).toEqual(['Tornillo']);
+		});
+
+		it('leaves the browser its shortcut on a sheet that does not fill', () => {
+			host.fillHandle.set(false);
+			fixture.detectChanges();
+			click(1, 0);
+
+			const event = new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, bubbles: true, cancelable: true });
+
+			fixture.nativeElement.querySelector('.hub-spreadsheet__table').dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(false);
+			expect(host.fills).toHaveLength(0);
 		});
 	});
 
@@ -2914,14 +3192,30 @@ describe('HubSpreadsheetComponent', () => {
 			expect(document.body.querySelector('.hub-tooltip')).toBeNull();
 		});
 
-		it('keeps the cell title as a native title when there is no error', () => {
-			host.columns.update((columns) => [
-				{ ...columns[0], cell: (row) => ({ value: row.product, editable: true, title: 'Hint' }) },
-				...columns.slice(1)
-			]);
-			fixture.detectChanges();
+		describe('the cell title', () => {
+			beforeEach(() => {
+				host.columns.update((columns) => [
+					{ ...columns[0], cell: (row) => ({ value: row.product, editable: true, title: 'Hint' }) },
+					...columns.slice(1)
+				]);
+				fixture.detectChanges();
+			});
 
-			expect(cell(0, 0).getAttribute('title')).toBe('Hint');
+			it('is said in the same tooltip, never as a native title the keyboard cannot reach', () => {
+				expect(cell(0, 0).hasAttribute('title')).toBe(false);
+
+				cell(0, 0).dispatchEvent(new FocusEvent('focus'));
+
+				expect(document.body.querySelector('.hub-tooltip')?.textContent).toBe('Hint');
+			});
+
+			it('gives way to an error while there is one', () => {
+				host.errors.set({ 'a\tproduct': 'Product is required' });
+				fixture.detectChanges();
+				cell(0, 0).dispatchEvent(new MouseEvent('mouseenter'));
+
+				expect(document.body.querySelector('.hub-tooltip')?.textContent).toBe('Product is required');
+			});
 		});
 	});
 

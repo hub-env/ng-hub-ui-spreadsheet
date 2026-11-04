@@ -32,9 +32,11 @@ export interface HubSpreadsheetCellContext<TRow> {
  * </hub-spreadsheet>
  * ```
  *
- * Two things stay the sheet's whatever the template draws. The clipboard carries the cell's value,
- * not its decoration, so a copy round-trips as data rather than as a picture of it. And the cell
- * is still the thing the keyboard is on: the template is drawn inside it, not instead of it.
+ * Some things stay the sheet's whatever the template draws. The clipboard carries the cell's value,
+ * not its decoration, so a copy round-trips as data rather than as a picture of it. The cell is
+ * still the thing the keyboard is on: the template is drawn inside it, not instead of it. And the
+ * cell's own controls stay: a yes/no column keeps its box, which is the editor as much as the
+ * display, with the template beside it; a list or date column keeps the arrow that opens it.
  *
  * A template with something clickable in it joins the tab order of the page, which the grid's own
  * roving tab stop does not manage — put the action behind `hubSpreadsheetEditor` instead when the

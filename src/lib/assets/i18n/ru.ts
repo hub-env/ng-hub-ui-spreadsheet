@@ -12,6 +12,7 @@ export const locale = {
 		UNMERGE_CELLS: 'Разделить {{ count }} блок(ов)',
 		ROW_ACTIONS: 'Действия со строками и столбцами',
 		ROW_MOVED: 'Строка перемещена на позицию {{ position }} из {{ total }}',
-		INVALID_DRAFT: 'Не сохранено: «{{ text }}» — недопустимое значение'
+		INVALID_DRAFT: 'Не сохранено: «{{ text }}» — недопустимое значение',
+		CHECK_ALL: '{{ column }}: все строки'
 	}
 };

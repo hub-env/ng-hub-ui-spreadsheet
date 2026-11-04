@@ -63,6 +63,7 @@ Esta biblioteca forma parte del ecosistema **ng-hub-ui**:
 - [📖 Referencia de la API](#-referencia-de-la-api)
 - [Archivos](#archivos)
 - [Texto que una celda no puede guardar](#texto-que-una-celda-no-puede-guardar)
+- [En un formulario](#en-un-formulario)
 - [🎨 Estilos](#-estilos)
 - [♿ Accesibilidad](#-accesibilidad)
 - [🤝 Contribuir](#-contribuir)
@@ -188,6 +189,10 @@ cell: (row) => ({ value: row.due, editable: true, placeholder: row.id === 'c' ? 
 
 Si se omite o es `null`, se usa el de la columna.
 
+El `title` de una celda sale en el tooltip de la hoja, al pasar el ratón y al llegar con el teclado: un atributo `title` nativo nunca se ve con el teclado. Un mensaje de `errors` ocupa su lugar mientras lo haya.
+
+Una columna de sí/no puede llevar **una casilla en la cabecera** que marca todas las filas a la vez: `checkAll: true`. Va detrás del nombre de la columna y sale a medias mientras las filas no coinciden. Al pulsarla las marca todas si alguna está sin marcar y las desmarca si ya lo estaban todas, y llega como un solo `filled`, así que se deshace de una vez.
+
 Leer la hoja como datos planos con los alias por clave:
 
 ```typescript
@@ -255,25 +260,26 @@ Para una celda que abre el detalle propio de la fila, pon el detalle en una plan
 
 ## ⌨️ Teclado
 
-| Tecla                            | Qué hace                                                                    |
-| -------------------------------- | --------------------------------------------------------------------------- |
-| Flechas                          | Mover una celda                                                             |
-| Mayús + flechas                  | Extender la selección                                                       |
-| `Tab` / `Mayús+Tab`              | Moverse de lado, cayendo en la fila siguiente en el borde                   |
-| `Inicio` / `Fin`                 | Primera y última celda de la fila                                           |
-| `Ctrl+Inicio` / `Ctrl+Fin`       | Primera y última celda de la hoja                                           |
-| `Re Pág` / `Av Pág`              | Moverse `pageSize` filas                                                    |
-| Cualquier carácter imprimible    | Sustituir la celda y empezar a editar                                       |
-| `F2`, `Intro`                    | Editar conservando el valor                                                 |
-| `Alt` + `Abajo`                  | Abrir una celda que lleva una lista o una fecha                             |
-| `Alt+Mayús` + `Arriba` / `Abajo` | Mover la fila un puesto, con `reorderableRows`, y decir adónde fue          |
-| `Intro` / `Tab` al editar        | Confirmar y bajar / avanzar                                                 |
-| `Escape` / `Tab` en tu editor    | Cerrarlo como estaba / confirmar lo que guarda y avanzar                    |
-| `Escape`                         | Revertir la edición, y después deshacer la selección                        |
-| `Supr` / `Retroceso`             | Vaciar una celda abriendo su editor, o todas las editables de una selección |
-| `Ctrl+C` / `X` / `V`             | Copiar, cortar, pegar                                                       |
-| `Ctrl+A`                         | Seleccionar la hoja                                                         |
-| `Ctrl+Espacio` / `Mayús+Espacio` | Seleccionar la columna / la fila                                            |
+| Tecla                            | Qué hace                                                                                 |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
+| Flechas                          | Mover una celda                                                                          |
+| Mayús + flechas                  | Extender la selección                                                                    |
+| `Tab` / `Mayús+Tab`              | Moverse de lado, cayendo en la fila siguiente en el borde                                |
+| `Inicio` / `Fin`                 | Primera y última celda de la fila                                                        |
+| `Ctrl+Inicio` / `Ctrl+Fin`       | Primera y última celda de la hoja                                                        |
+| `Re Pág` / `Av Pág`              | Moverse `pageSize` filas                                                                 |
+| Cualquier carácter imprimible    | Sustituir la celda y empezar a editar                                                    |
+| `F2`, `Intro`                    | Editar conservando el valor                                                              |
+| `Alt` + `Abajo`                  | Abrir una celda que lleva una lista o una fecha                                          |
+| `Alt+Mayús` + `Arriba` / `Abajo` | Mover la fila un puesto, con `reorderableRows`, y decir adónde fue                       |
+| `Intro` / `Tab` al editar        | Confirmar y bajar / avanzar                                                              |
+| `Escape` / `Tab` en tu editor    | Cerrarlo como estaba / confirmar lo que guarda y avanzar                                 |
+| `Escape`                         | Revertir la edición, y después deshacer la selección                                     |
+| `Supr` / `Retroceso`             | Vaciar una celda abriendo su editor, o todas las editables de una selección              |
+| `Ctrl+C` / `X` / `V`             | Copiar, cortar, pegar                                                                    |
+| `Ctrl+D` (`Cmd+D` en un Mac)     | Rellenar hacia abajo, con `fillHandle`: la primera fila de la selección en las de debajo |
+| `Ctrl+A`                         | Seleccionar la hoja                                                                      |
+| `Ctrl+Espacio` / `Mayús+Espacio` | Seleccionar la columna / la fila                                                         |
 
 ## 📋 El portapapeles
 
@@ -296,6 +302,8 @@ protected onPaste(paste: HubSpreadsheetPaste<Line>): void {
 	// paste.range    — the rectangle it covered
 }
 ```
+
+Un bloque más largo que la hoja pide las filas que le faltan, si `structure` deja añadir filas: la hoja emite `insertRequested` con `at` al final y `count` igual a las filas que faltan, y el bloque entero llega en `pasted` en cuanto están dibujadas. Atiende `count`, no una sola fila. Si quien usa la hoja no añade ninguna, se pega lo que cabe y el resto va en `skipped`.
 
 ## ❄️ Paneles congelados
 
@@ -341,6 +349,19 @@ import { danglingColumnKeys } from 'ng-hub-ui-spreadsheet';
 danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 ```
 
+Una fila añadida desde un botón propio puede llevarse al lector con ella. `focusCell` pone el cursor en una celda por clave de fila y alias, y espera a la fila si todavía no ha llegado a la hoja; sin alias cae en la primera celda de la fila en la que se puede escribir, y la siguiente tecla la abre:
+
+```typescript
+private readonly sheet = viewChild.required<HubSpreadsheetComponent<Line>>(HubSpreadsheetComponent);
+
+protected addLine(): void {
+	const id = crypto.randomUUID();
+
+	this.lines.update((lines) => [...lines, { id, product: '', units: null }]);
+	this.sheet().focusCell(id);
+}
+```
+
 ## 📖 Referencia de la API
 
 ### Entradas
@@ -372,7 +393,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `contextMenu`        | `boolean`                                                   | `false`          | Ofrece los cambios de estructura con el botón derecho.                                                                                 |
 | `mergeable`          | `boolean`                                                   | `false`          | Ofrece combinar celdas y separarlas en ese mismo menú.                                                                                 |
 | `disjointSelection`  | `boolean`                                                   | `true`           | Si con `Ctrl` pulsado un clic añade otro bloque en lugar de empezar de nuevo.                                                          |
-| `fillHandle`         | `boolean`                                                   | `false`          | Dibuja el tirador en la esquina de la selección.                                                                                       |
+| `fillHandle`         | `boolean`                                                   | `false`          | Dibuja el tirador en la esquina de la selección y atiende `Ctrl+D` (`Cmd+D`) para rellenar hacia abajo.                                |
 | `canUndo`            | `boolean`                                                   | `false`          | Si `Ctrl+Z` tiene algo que pedir. El histórico es del anfitrión.                                                                       |
 | `canRedo`            | `boolean`                                                   | `false`          | Lo mismo para `Ctrl+Mayús+Z` y `Ctrl+Y`.                                                                                               |
 | `resizableColumns`   | `boolean`                                                   | `false`          | Permite arrastrar el borde final de una cabecera.                                                                                      |
@@ -402,6 +423,12 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `invalidDraftsChange`   | `Record<string, string>`        | El lector sale de una celda con texto que no vale, o corrige, abandona o sobrescribe uno.                                     |
 | `mergeRequested`        | `HubSpreadsheetMergeRequest`    | El lector pide combinar una selección. Incluye lo que absorbe.                                                                |
 | `unmergeRequested`      | `readonly HubGridCoords[]`      | El lector pide separar los bloques que toca su selección.                                                                     |
+
+### Métodos
+
+| Método                       | Qué hace                                                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `focusCell(rowKey, column?)` | Pone el cursor y el teclado en una celda, y espera a una fila que todavía está en camino; ver el apartado de arriba. |
 
 ### Ayudantes
 
@@ -525,7 +552,8 @@ móvil ya sabe hacer. Hay dos maneras de poner otra cosa.
 
 **Celdas propias, en reposo.** `hubSpreadsheetCell` dibuja lo que muestra una columna mientras no
 se edita: una insignia, un avatar, una fila de acciones. El portapapeles sigue llevando el valor y
-no el dibujo.
+no el dibujo, y la celda conserva sus propios controles: una columna de sí/no, su casilla, con la
+plantilla al lado; una de lista o de fecha, la flecha que la abre.
 
 ```html
 <ng-template hubSpreadsheetCell="state" let-value>
@@ -639,8 +667,7 @@ texto: la celda lo muestra rodeado como no válido, con un tooltip que dice que 
 `invalidDrafts` lo guarda con la clave de su fila y su columna.
 
 ```html
-<hub-spreadsheet [(invalidDrafts)]="unsaved" ... />
-<button [disabled]="hasUnsaved()" (click)="save()">Guardar</button>
+<hub-spreadsheet [(invalidDrafts)]="unsaved" ... /> <button [disabled]="hasUnsaved()" (click)="save()">Guardar</button>
 ```
 
 ```ts
@@ -652,6 +679,16 @@ Al abrir la celda vuelve el texto para corregirlo. `Escape` ahí lo abandona, y 
 o un borrado sobre la celda lo quitan. También se va si la celda sale de la hoja, porque su fila o su
 columna se borra, se filtra o queda en otra página. Tus datos nunca cambian solos: el valor anterior sigue donde
 estaba hasta que el lector confirme uno nuevo.
+
+## En un formulario
+
+`ng-hub-ui-spreadsheet/signals` trae `hub-spreadsheet-field`, una hoja cuyo valor son sus filas. Es el `FormValueControl` del propio Angular, así que se enlaza a un campo de Signal Forms y, sin código adicional, a un `FormControl` reactivo:
+
+```html
+<hub-spreadsheet-field [formControl]="lines" [columns]="columns" [rowKey]="rowKey" />
+```
+
+Las ediciones, los pegados y los borrados escriben las filas de vuelta, y un control deshabilitado deja la hoja en solo lectura. Solo pasa una parte de las entradas de la hoja (sin tirador de relleno, estructura, menú contextual, fila abierta ni plantillas); cuando hagan falta, deja `hub-spreadsheet` enlazada a tus propias filas.
 
 ## 🎨 Estilos
 

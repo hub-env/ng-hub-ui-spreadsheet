@@ -12,6 +12,7 @@ export const locale = {
 		UNMERGE_CELLS: '拆分 {{ count }} 个合并块',
 		ROW_ACTIONS: '行与列操作',
 		ROW_MOVED: '行已移至第 {{ position }} 位，共 {{ total }} 行',
-		INVALID_DRAFT: '未保存：“{{ text }}”在此处不是有效值'
+		INVALID_DRAFT: '未保存：“{{ text }}”在此处不是有效值',
+		CHECK_ALL: '{{ column }}：所有行'
 	}
 };

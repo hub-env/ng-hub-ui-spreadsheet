@@ -12,6 +12,7 @@ export const locale = {
 		UNMERGE_CELLS: 'فصل {{ count }} كتلة',
 		ROW_ACTIONS: 'إجراءات الصفوف والأعمدة',
 		ROW_MOVED: 'نُقل الصف إلى الموضع {{ position }} من {{ total }}',
-		INVALID_DRAFT: 'لم يُحفظ: «{{ text }}» ليست قيمة صالحة هنا'
+		INVALID_DRAFT: 'لم يُحفظ: «{{ text }}» ليست قيمة صالحة هنا',
+		CHECK_ALL: '{{ column }}: كل الصفوف'
 	}
 };

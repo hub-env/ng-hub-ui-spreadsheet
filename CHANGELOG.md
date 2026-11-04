@@ -1,5 +1,42 @@
 # Changelog
 
+## [22.10.0] - 2026-11-04
+
+### Added
+
+- **`focusCell(rowKey, column?)`** puts the cursor on a cell from the host's code. It is meant for a
+  row added from a button of the page's own: the request waits for the row to reach the sheet, lands
+  on the row's first cell the reader can type into unless a column is named, and the next key typed
+  opens that cell.
+- **`Ctrl+D` fills down** (`Cmd+D` on a Mac) when `fillHandle` is on: the top row of the selection is
+  copied into the rows below it, or the row above into a selection one row tall, and the whole of it
+  is reported as one `filled`. Without `fillHandle` the browser keeps the shortcut.
+- **A paste longer than the sheet asks for the rows it runs past.** Where `structure` lets rows be
+  added, the sheet emits `insertRequested` with the number missing at the end and pastes the whole
+  block once the rows are drawn. An owner that adds none gets what fits, as before. Only rows are
+  asked for: a column is the host's to define, so what runs past the last column stays out and
+  counts in `skipped`.
+- **`checkAll` on a yes/no column** puts a box in its header, after the column's name, that ticks
+  every row at once. It shows mixed while the rows disagree, ticks them all when any is clear and
+  clears them when all are ticked, and is reported as one `filled`.
+
+### Changed
+
+- **A cell's `title` is said in the sheet's tooltip**, on hover and when the keyboard lands on the
+  cell, instead of a native `title` the keyboard never shows. A message in `errors` still takes its
+  place.
+- **A cell template keeps the cell's own controls.** A yes/no column draws its box with the template
+  beside it, where it used to ignore the template, and a list or date column keeps the arrow that
+  opens it, which a template used to hide.
+- The README shows `hub-spreadsheet-field` bound to a reactive `FormControl`, and a test now covers it.
+
+### Fixed
+
+- **An empty row is as tall as a filled one.** A cell with nothing in it has no line of text, so a
+  blank row stood no taller than its padding and read as a rule rather than as a row to fill in.
+- **A cell in a bottom corner of the frame follows its curve.** The frame is rounded and the cell was
+  square, so the cursor's outline and a selection's tint stuck out past the corner.
+
 ## [22.9.1] - 2026-11-03
 
 ### Changed

@@ -63,6 +63,7 @@ This library is part of the **ng-hub-ui** ecosystem:
 - [📖 API Reference](#-api-reference)
 - [Files](#files)
 - [Text a cell cannot store](#text-a-cell-cannot-store)
+- [In a form](#in-a-form)
 - [🎨 Styling](#-styling)
 - [♿ Accessibility](#-accessibility)
 - [🤝 Contributing](#-contributing)
@@ -188,6 +189,10 @@ cell: (row) => ({ value: row.due, editable: true, placeholder: row.id === 'c' ? 
 
 Left out or `null`, the column's placeholder is used.
 
+A cell's `title` is said in the sheet's tooltip, when the pointer rests on the cell and when the keyboard lands on it — a native `title` attribute would never show for a keyboard reader. A message in `errors` takes its place while there is one.
+
+A yes/no column can put **a box in its header** that ticks every row at once: `checkAll: true`. It sits after the column's name and shows mixed while the rows disagree. A press ticks them all when any is clear and clears them when all are ticked, and arrives as one `filled`, so it undoes in one step.
+
 Read the sheet back as plain data keyed by alias:
 
 ```typescript
@@ -255,25 +260,26 @@ For a cell that opens the row's own detail, put the detail in an `expansion` tem
 
 ## ⌨️ Keyboard
 
-| Key                           | What it does                                                          |
-| ----------------------------- | --------------------------------------------------------------------- |
-| Arrows                        | Move one cell                                                         |
-| Shift + arrows                | Extend the selection                                                  |
-| `Tab` / `Shift+Tab`           | Move sideways, falling onto the next row at the edge                  |
-| `Home` / `End`                | First and last cell of the row                                        |
-| `Ctrl+Home` / `Ctrl+End`      | First and last cell of the sheet                                      |
-| `Page Up` / `Page Down`       | Move by `pageSize` rows                                               |
-| Any printable character       | Replace the cell and start editing                                    |
-| `F2`, `Enter`                 | Edit, keeping the value                                               |
-| `Alt` + `Down`                | Open a cell that holds a list or a date                               |
-| `Alt+Shift` + `Up` / `Down`   | Move the row one place, with `reorderableRows`, and say where it went |
-| `Enter` / `Tab` while editing | Commit and move down / right                                          |
-| `Escape` / `Tab` in an editor | Close it as it was / commit what it holds and move right              |
-| `Escape`                      | Revert the edit, then clear the selection                             |
-| `Delete` / `Backspace`        | Empty one cell into its editor, or every editable cell of a selection |
-| `Ctrl+C` / `X` / `V`          | Copy, cut, paste                                                      |
-| `Ctrl+A`                      | Select the sheet                                                      |
-| `Ctrl+Space` / `Shift+Space`  | Select the column / the row                                           |
+| Key                           | What it does                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------- |
+| Arrows                        | Move one cell                                                                     |
+| Shift + arrows                | Extend the selection                                                              |
+| `Tab` / `Shift+Tab`           | Move sideways, falling onto the next row at the edge                              |
+| `Home` / `End`                | First and last cell of the row                                                    |
+| `Ctrl+Home` / `Ctrl+End`      | First and last cell of the sheet                                                  |
+| `Page Up` / `Page Down`       | Move by `pageSize` rows                                                           |
+| Any printable character       | Replace the cell and start editing                                                |
+| `F2`, `Enter`                 | Edit, keeping the value                                                           |
+| `Alt` + `Down`                | Open a cell that holds a list or a date                                           |
+| `Alt+Shift` + `Up` / `Down`   | Move the row one place, with `reorderableRows`, and say where it went             |
+| `Enter` / `Tab` while editing | Commit and move down / right                                                      |
+| `Escape` / `Tab` in an editor | Close it as it was / commit what it holds and move right                          |
+| `Escape`                      | Revert the edit, then clear the selection                                         |
+| `Delete` / `Backspace`        | Empty one cell into its editor, or every editable cell of a selection             |
+| `Ctrl+C` / `X` / `V`          | Copy, cut, paste                                                                  |
+| `Ctrl+D` (`Cmd+D` on a Mac)   | Fill down, with `fillHandle`: the top row of the selection into the rows below it |
+| `Ctrl+A`                      | Select the sheet                                                                  |
+| `Ctrl+Space` / `Shift+Space`  | Select the column / the row                                                       |
 
 ## 📋 The Clipboard
 
@@ -296,6 +302,8 @@ protected onPaste(paste: HubSpreadsheetPaste<Line>): void {
 	// paste.range    — the rectangle it covered
 }
 ```
+
+A block longer than the sheet asks for the rows it runs past, where `structure` lets rows be added: the sheet emits `insertRequested` with `at` at the end and `count` the rows missing, and the whole block arrives in `pasted` once they are drawn. Handle `count`, not just one row. An owner that adds none gets what fits, with the rest in `skipped`.
 
 ## ❄️ Frozen Panes
 
@@ -341,6 +349,19 @@ import { danglingColumnKeys } from 'ng-hub-ui-spreadsheet';
 danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 ```
 
+A row added from a button of your own can take the reader with it. `focusCell` puts the cursor on a cell by row key and alias, and waits for the row when it has not reached the sheet yet; with no alias it lands on the row's first cell the reader can type into, and the next key opens it:
+
+```typescript
+private readonly sheet = viewChild.required<HubSpreadsheetComponent<Line>>(HubSpreadsheetComponent);
+
+protected addLine(): void {
+	const id = crypto.randomUUID();
+
+	this.lines.update((lines) => [...lines, { id, product: '', units: null }]);
+	this.sheet().focusCell(id);
+}
+```
+
 ## 📖 API Reference
 
 ### Inputs
@@ -372,7 +393,7 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `contextMenu`        | `boolean`                                                   | `false`          | Offers the structural changes on right-click.                                                               |
 | `mergeable`          | `boolean`                                                   | `false`          | Offers putting cells together, and taking them apart, in that menu.                                         |
 | `disjointSelection`  | `boolean`                                                   | `true`           | Whether `Ctrl`-clicking adds a second block instead of starting a new selection.                            |
-| `fillHandle`         | `boolean`                                                   | `false`          | Draws the grip at the corner of the selection.                                                              |
+| `fillHandle`         | `boolean`                                                   | `false`          | Draws the grip at the corner of the selection, and takes `Ctrl+D` (`Cmd+D`) to fill down.                   |
 | `canUndo`            | `boolean`                                                   | `false`          | Whether `Ctrl+Z` has anything to ask for. The history belongs to the host.                                  |
 | `canRedo`            | `boolean`                                                   | `false`          | The same for `Ctrl+Shift+Z` and `Ctrl+Y`.                                                                   |
 | `resizableColumns`   | `boolean`                                                   | `false`          | Lets the reader drag a header's trailing edge.                                                              |
@@ -402,6 +423,12 @@ danglingColumnKeys(Object.keys(this.savedState), this.columns); // ['discount']
 | `invalidDraftsChange`   | `Record<string, string>`        | The reader left a cell with text it cannot store, or corrected, gave up or wrote over one.                              |
 | `mergeRequested`        | `HubSpreadsheetMergeRequest`    | The reader asked to put a selection together. Carries what it swallows.                                                 |
 | `unmergeRequested`      | `readonly HubGridCoords[]`      | The reader asked to take apart the blocks their selection touches.                                                      |
+
+### Methods
+
+| Method                       | What it does                                                                                                   |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `focusCell(rowKey, column?)` | Puts the cursor and the keyboard on a cell, waiting for a row that is still on its way; see the section above. |
 
 ### Helpers
 
@@ -523,7 +550,8 @@ already knows. Two ways to put something else there.
 
 **Cells of your own, at rest.** `hubSpreadsheetCell` draws what a column shows while it is not
 being edited — a badge, an avatar, a row of actions. The clipboard still carries the value rather
-than the drawing.
+than the drawing, and the cell keeps its own controls: a yes/no column its box, with the template
+beside it, and a list or date column the arrow that opens it.
 
 ```html
 <ng-template hubSpreadsheetCell="state" let-value>
@@ -633,8 +661,7 @@ text: the cell shows it ringed as invalid, with a tooltip saying it was not save
 `invalidDrafts` holds it keyed by row and column.
 
 ```html
-<hub-spreadsheet [(invalidDrafts)]="unsaved" ... />
-<button [disabled]="hasUnsaved()" (click)="save()">Save</button>
+<hub-spreadsheet [(invalidDrafts)]="unsaved" ... /> <button [disabled]="hasUnsaved()" (click)="save()">Save</button>
 ```
 
 ```ts
@@ -646,6 +673,16 @@ Opening the cell brings the text back to be corrected. `Escape` there gives it u
 fill or a clear over the cell drops it. So does the cell leaving the sheet, when its row or its
 column is deleted, filtered out or paged away. Your data never changes on its own: the old value stays
 where it was until the reader commits a new one.
+
+## In a form
+
+`ng-hub-ui-spreadsheet/signals` has `hub-spreadsheet-field`, a sheet whose value is its rows. It is Angular's own `FormValueControl`, so it binds to a Signal Forms field and, with no extra code, to a reactive `FormControl`:
+
+```html
+<hub-spreadsheet-field [formControl]="lines" [columns]="columns" [rowKey]="rowKey" />
+```
+
+Edits, pastes and clears write the rows back, and a disabled control turns the sheet read-only. It passes on only part of the sheet's inputs — no fill handle, structure, context menu, expansion or templates — so when you need those, keep `hub-spreadsheet` bound to rows of your own.
 
 ## 🎨 Styling
 

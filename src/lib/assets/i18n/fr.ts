@@ -12,6 +12,7 @@ export const locale = {
 		UNMERGE_CELLS: 'Séparer {{ count }} bloc(s)',
 		ROW_ACTIONS: 'Actions sur lignes et colonnes',
 		ROW_MOVED: 'Ligne déplacée en position {{ position }} sur {{ total }}',
-		INVALID_DRAFT: 'Non enregistré : « {{ text }} » n’est pas une valeur valide ici'
+		INVALID_DRAFT: 'Non enregistré : « {{ text }} » n’est pas une valeur valide ici',
+		CHECK_ALL: '{{ column }} : toutes les lignes'
 	}
 };

@@ -322,7 +322,13 @@ export class HubSpreadsheetComponent<TRow> {
 	 * for something of its own.
 	 */
 	readonly disjointSelection = input(true, { transform: booleanAttribute });
-	/** Whether the sheet offers the fill handle at the corner of the selection. */
+	/**
+	 * Whether the sheet offers the fill handle at the corner of the selection.
+	 *
+	 * It brings `Ctrl+D` (`Cmd+D` on a Mac) along: the top row of the selection copied into the rows
+	 * below it, or the row above into a selection one row tall. Taken only here, so a sheet that does
+	 * not fill leaves the browser its shortcut.
+	 */
 	readonly fillHandle = input(false, { transform: booleanAttribute });
 	/** Whether undo is available; the sheet only asks, the owner keeps the history. */
 	readonly canUndo = input(false, { transform: booleanAttribute });
@@ -491,7 +497,12 @@ export class HubSpreadsheetComponent<TRow> {
 
 	/** A cell took a new value. */
 	readonly commit = output<HubSpreadsheetCommit<TRow>>();
-	/** A block was pasted. */
+	/**
+	 * A block was pasted.
+	 *
+	 * One that runs past the last row, where `structure` lets rows be added, first asks for the rows
+	 * it needs through {@link insertRequested} and arrives here once they are drawn, whole.
+	 */
 	readonly pasted = output<HubSpreadsheetPaste<TRow>>();
 	/**
 	 * The reader asked to open what a cell points at.
@@ -510,7 +521,10 @@ export class HubSpreadsheetComponent<TRow> {
 	readonly cleared = output<HubSpreadsheetCellRef<TRow>[]>();
 	/** The selected rectangle changed; null when nothing is selected. */
 	readonly selectionChange = output<HubGridRange | null>();
-	/** The reader asked to add rows or columns. */
+	/**
+	 * The reader asked to add rows or columns: from the context menu, or by pasting a block longer
+	 * than the sheet, which asks for the rows it runs past at the end.
+	 */
 	readonly insertRequested = output<HubSpreadsheetInsertRequest>();
 	/** The reader asked to remove rows or columns. */
 	readonly deleteRequested = output<HubSpreadsheetDeleteRequest>();
@@ -603,6 +617,8 @@ export class HubSpreadsheetComponent<TRow> {
 	#held: { readonly value: HubSpreadsheetValue } | null = null;
 	/** Whether the Escape now travelling found a list open inside a supplied editor. */
 	#popupWasOpen = false;
+	/** A cell the host asked the cursor onto, kept until its row is in the sheet. */
+	readonly #pendingFocus = signal<{ readonly rowKey: string; readonly column?: string } | null>(null);
 	/** The last keyboard move: the order it was reported against, and the order it asked for. */
 	#pendingMove: { readonly against: readonly string[]; readonly order: string[] } | null = null;
 	/** What the live region last said, for what is otherwise only seen, such as a row moved. */
@@ -818,6 +834,19 @@ export class HubSpreadsheetComponent<TRow> {
 		}
 
 		return grouped;
+	});
+
+	/** The last row of the sheet that is not folded away, or -1 when there is none. */
+	private readonly lastDrawnRow = computed(() => {
+		const hidden = this.hiddenRows();
+
+		for (let row = this.rows().length - 1; row >= 0; row--) {
+			if (!hidden.has(row)) {
+				return row;
+			}
+		}
+
+		return -1;
 	});
 
 	/** The column indices in the document: frozen ones first, folded ones out. */
@@ -1879,6 +1908,35 @@ export class HubSpreadsheetComponent<TRow> {
 	});
 
 	/**
+	 * Carries out a {@link focusCell} once the row it names is in the sheet.
+	 *
+	 * The host usually asks right after adding the row, before its rows have reached the sheet, so
+	 * the request waits for them rather than failing on a row that is about to exist.
+	 */
+	private readonly applyPendingFocus = effect(() => {
+		const pending = this.#pendingFocus();
+		const row = pending ? this.keys().indexOf(pending.rowKey) : -1;
+
+		if (!pending || row < 0) {
+			return;
+		}
+
+		untracked(() => {
+			this.#pendingFocus.set(null);
+
+			const col =
+				pending.column === undefined
+					? this.grid()[row].findIndex((cell) => cell.editable)
+					: this.columns().findIndex((column) => column.key === pending.column);
+
+			if (col >= 0) {
+				this.leaveEdit();
+				this.moveTo({ row, col }, false);
+			}
+		});
+	});
+
+	/**
 	 * Keeps the viewport's measurements up to date while virtualising.
 	 *
 	 * In the read phase, like the frozen offsets: reading layout while the browser is writing one
@@ -2039,6 +2097,28 @@ export class HubSpreadsheetComponent<TRow> {
 		const span = spanAt(this.spanMap(), { row, col });
 
 		return col + (span?.colSpan ?? 1) - 1 >= this.bounds().cols - 1;
+	}
+
+	/**
+	 * Which bottom corner of the frame a cell sits in, if any.
+	 *
+	 * The frame is rounded, and a cell there is square: the cursor's outline and a selection's tint
+	 * stuck out past the curve. Such a cell takes the rounding itself. Only the last row that is drawn
+	 * and not followed by an open row reaches the bottom; the leading corner is the first column
+	 * drawn and the trailing one the column that reaches the end of the sheet.
+	 */
+	protected cornerOf(row: number, col: number): 'start' | 'end' | 'both' | null {
+		const span = spanAt(this.spanMap(), { row, col });
+		const last = this.lastDrawnRow();
+
+		if (last < 0 || row + (span?.rowSpan ?? 1) - 1 !== last || this.isExpanded(last)) {
+			return null;
+		}
+
+		const start = col === this.drawnColumns()[0];
+		const end = this.reachesEnd(row, col);
+
+		return start && end ? 'both' : start ? 'start' : end ? 'end' : null;
 	}
 
 	protected isActive(row: number, col: number): boolean {
@@ -2331,6 +2411,37 @@ export class HubSpreadsheetComponent<TRow> {
 		});
 	}
 
+	/** How a yes/no column's header box stands: every row ticked, none of them, or a mix. */
+	protected checkAllState(col: number): 'on' | 'off' | 'mixed' {
+		const grid = this.grid();
+		const on = grid.filter((row) => isTruthy(row[col]?.value)).length;
+
+		return on === 0 ? 'off' : on === grid.length ? 'on' : 'mixed';
+	}
+
+	/** The accessible name of a yes/no column's header box, in the reader's language. */
+	protected checkAllLabel(column: HubSpreadsheetColumn<TRow>): string {
+		return this.say('CHECK_ALL', { column: column.header });
+	}
+
+	/** Ticks every row of a yes/no column, or clears them all when every row is ticked already. */
+	protected checkAll(col: number): void {
+		if (this.readonly()) {
+			return;
+		}
+
+		const value = this.checkAllState(col) === 'on' ? 0 : 1;
+		const cells: HubSpreadsheetCommit<TRow>[] = [];
+		const rows = this.grid().length;
+		let skipped = 0;
+
+		for (let row = 0; row < rows; row++) {
+			skipped += this.collectFill(cells, row, col, value) ? 0 : 1;
+		}
+
+		this.filled.emit({ cells, range: { top: 0, bottom: rows - 1, left: col, right: col }, skipped, rejected: 0 });
+	}
+
 	protected canEdit(row: number, col: number): boolean {
 		// A column with a formula of its own has nothing to type into: the cell shows what the
 		// column works out, and letting a reader replace it would lose the formula for that row
@@ -2359,6 +2470,21 @@ export class HubSpreadsheetComponent<TRow> {
 
 		this.moveTo({ row, col }, false);
 		this.startEdit(undefined);
+	}
+
+	/**
+	 * Puts the cursor on a cell, and the keyboard in the sheet, from the host's code.
+	 *
+	 * Meant for a row the host has just added from a button of its own: the reader goes on typing
+	 * there, as if they had walked to it, and the first key opens the cell. A row that is not in the
+	 * sheet yet is waited for. A pointer or keyboard move in between does not cancel the request,
+	 * because the row the host is adding is still where the reader is headed.
+	 *
+	 * @param rowKey The row, by the key `rowKey` gives it.
+	 * @param column The column alias; the row's first cell the reader can type into when left out.
+	 */
+	focusCell(rowKey: string, column?: string): void {
+		this.#pendingFocus.set({ rowKey, column });
 	}
 
 	protected onKeydown(event: KeyboardEvent): void {
@@ -2391,6 +2517,13 @@ export class HubSpreadsheetComponent<TRow> {
 		if (this.reorderableRows() && isRowMoveKey(event)) {
 			event.preventDefault();
 			this.moveRowBy(active, event.key === 'ArrowUp' ? -1 : 1);
+
+			return;
+		}
+
+		if (this.fillHandle() && !this.readonly() && isFillDownKey(event)) {
+			event.preventDefault();
+			this.fillDown();
 
 			return;
 		}
@@ -2899,8 +3032,6 @@ export class HubSpreadsheetComponent<TRow> {
 		}
 
 		const grid = this.grid();
-		const rows = this.rows();
-		const columns = this.columns();
 		const cells: HubSpreadsheetCommit<TRow>[] = [];
 		let skipped = 0;
 
@@ -2908,16 +3039,7 @@ export class HubSpreadsheetComponent<TRow> {
 		const across = target.right - source.right;
 
 		const write = (row: number, col: number, value: HubSpreadsheetValue) => {
-			const cell = grid[row]?.[col];
-
-			if (!cell?.editable) {
-				skipped++;
-				return;
-			}
-
-			if (value !== cell.value) {
-				cells.push({ coords: { row, col }, row: rows[row], column: columns[col], cell, value });
-			}
+			skipped += this.collectFill(cells, row, col, value) ? 0 : 1;
 		};
 
 		if (down > 0) {
@@ -2949,6 +3071,58 @@ export class HubSpreadsheetComponent<TRow> {
 		this.forgetDrafts(gridRangeCells(target));
 		this.filled.emit({ cells, range: target, skipped, rejected: 0 });
 		this.announceSelection();
+	}
+
+	/**
+	 * Copies the top row of the selection into the rows below it, as `Ctrl+D` does in a spreadsheet.
+	 * A selection one row tall takes the row above it instead. Reported as one `filled`, like a drag
+	 * of the handle, so an owner keeping a history makes it one step.
+	 */
+	private fillDown(): void {
+		const range = this.range();
+
+		if (!range) {
+			return;
+		}
+
+		const single = range.top === range.bottom;
+		const source = single ? range.top - 1 : range.top;
+
+		if (source < 0) {
+			return;
+		}
+
+		const grid = this.grid();
+		const cells: HubSpreadsheetCommit<TRow>[] = [];
+		let skipped = 0;
+
+		for (let col = range.left; col <= range.right; col++) {
+			for (let row = single ? range.top : range.top + 1; row <= range.bottom; row++) {
+				skipped += this.collectFill(cells, row, col, grid[source][col].value) ? 0 : 1;
+			}
+		}
+
+		this.forgetDrafts(gridRangeCells(range));
+		this.filled.emit({ cells, range, skipped, rejected: 0 });
+	}
+
+	/**
+	 * Adds one cell a fill writes to `cells`, leaving out a value it already holds.
+	 *
+	 * @returns false when the cell cannot be written, for the fill to count as skipped.
+	 */
+	private collectFill(cells: HubSpreadsheetCommit<TRow>[], row: number, col: number, value: HubSpreadsheetValue): boolean {
+		const cell = this.grid()[row]?.[col];
+
+		if (!cell?.editable) {
+			return false;
+		}
+
+		if (value !== cell.value) {
+			cells.push({ coords: { row, col }, row: this.rows()[row], column: this.columns()[col], cell, value });
+		}
+
+		return true;
 	}
 
 	/**
@@ -3026,6 +3200,23 @@ export class HubSpreadsheetComponent<TRow> {
 		this.focusActive();
 
 		if (!block.length) {
+			return;
+		}
+
+		// A block that runs past the last row asks for the rows it needs, where the sheet may grow,
+		// and is pasted whole once they arrive. An owner that adds none, or adds them later than the
+		// next render, gets what fits, with the rest counted as skipped.
+		const rows = this.rows();
+		const missing = active.row + block.length - rows.length;
+
+		if (
+			missing > 0 &&
+			!this.readonly() &&
+			isStructureAllowed(this.structure().insertRows, rows[active.row] ?? null, active.row)
+		) {
+			this.insertRequested.emit({ axis: 'row', at: rows.length, count: missing });
+			afterNextRender(() => this.applyPaste(active, block), { injector: this.#injector });
+
 			return;
 		}
 
@@ -3909,6 +4100,11 @@ export class HubSpreadsheetComponent<TRow> {
  */
 function isComposing(event: KeyboardEvent): boolean {
 	return event.isComposing || event.keyCode === 229;
+}
+
+/** `Ctrl+D`, or `Cmd+D` on a Mac: fill down, as in every spreadsheet. */
+function isFillDownKey(event: KeyboardEvent): boolean {
+	return (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'd';
 }
 
 /** `Alt+Shift` with the up or down arrow, the keyboard's way of moving a row. */

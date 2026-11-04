@@ -8,5 +8,5 @@
 			"ng-hub-ui-spreadsheet": ["../../projects/spreadsheet/src/public-api.ts"]
 		}
 	},
-	"include": ["src/**/*.spec.ts", "src/**/*.d.ts"]
+	"include": ["src/**/*.spec.ts", "src/**/*.d.ts", "signals/src/**/*.spec.ts"]
 }

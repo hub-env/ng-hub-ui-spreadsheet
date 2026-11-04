@@ -12,6 +12,7 @@ export const locale = {
 		UNMERGE_CELLS: '{{ count }} Block/Blöcke trennen',
 		ROW_ACTIONS: 'Aktionen für Zeilen und Spalten',
 		ROW_MOVED: 'Zeile an Position {{ position }} von {{ total }} verschoben',
-		INVALID_DRAFT: 'Nicht gespeichert: „{{ text }}“ ist hier kein gültiger Wert'
+		INVALID_DRAFT: 'Nicht gespeichert: „{{ text }}“ ist hier kein gültiger Wert',
+		CHECK_ALL: '{{ column }}: alle Zeilen'
 	}
 };

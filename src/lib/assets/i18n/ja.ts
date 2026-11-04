@@ -12,6 +12,7 @@ export const locale = {
 		UNMERGE_CELLS: '{{ count }} 個の結合を解除',
 		ROW_ACTIONS: '行と列の操作',
 		ROW_MOVED: '行を {{ total }} 行中 {{ position }} 番目に移動しました',
-		INVALID_DRAFT: '保存されていません：「{{ text }}」はここでは有効な値ではありません'
+		INVALID_DRAFT: '保存されていません：「{{ text }}」はここでは有効な値ではありません',
+		CHECK_ALL: '{{ column }}：すべての行'
 	}
 };
