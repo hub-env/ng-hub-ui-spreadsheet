@@ -238,8 +238,8 @@ what keeps `Enter` for the cell:
 ```
 
 `open()` is handed to the template and reports the intent through `opened`; the sheet opens nothing
-itself. An editable cell keeps `Enter` for editing, and the clipboard still carries the value rather
-than the drawing.
+itself. An editable cell keeps `Enter` for editing and opens with `Alt+Enter` (`Option+Enter` on a
+Mac), and the clipboard still carries the value rather than the drawing.
 
 `hubSpreadsheetCellAction` may also be **a function of the row**, for a column where only some cells
 open — a product whose folded row opens its variants while its own row is only read:
@@ -293,6 +293,7 @@ For a cell that opens the row's own detail, put the detail in an `expansion` tem
 | Any printable character       | Replace the cell and start editing                                                          |
 | `F2`, `Enter`                 | Edit, keeping the value                                                                     |
 | `Alt` + `Down`                | Open a cell that holds a list or a date, or the append of a number, currency or text column |
+| `Alt` + `Enter`               | Open what a cell points at when the cell is also typed into (`hubSpreadsheetCellAction`)    |
 | `Alt+Shift` + `Up` / `Down`   | Move the row one place, with `reorderableRows`, and say where it went                       |
 | `Enter` / `Tab` while editing | Commit and move down / right                                                                |
 | `Escape` / `Tab` in an editor | Close it as it was / commit what it holds and move right                                    |
@@ -384,6 +385,12 @@ protected addLine(): void {
 }
 ```
 
+`editCell` does the same and opens the cell's editor too, keeping its value, for a line meant to be written in straight away, such as a note:
+
+```typescript
+this.sheet().editCell(id, 'description');
+```
+
 ## 📖 API Reference
 
 ### Inputs
@@ -451,6 +458,7 @@ protected addLine(): void {
 | Method                       | What it does                                                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `focusCell(rowKey, column?)` | Puts the cursor and the keyboard on a cell, waiting for a row that is still on its way; see the section above. |
+| `editCell(rowKey, column?)`  | Opens a cell's editor from code, keeping its value, as `F2` does; waits for the row as `focusCell` does.       |
 
 ### Helpers
 

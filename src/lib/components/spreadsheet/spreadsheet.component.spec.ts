@@ -2172,6 +2172,47 @@ describe('HubSpreadsheetComponent', () => {
 
 			expect(cell(1, 1).getAttribute('tabindex')).toBe('0');
 		});
+
+		it('opens the editor of the cell it names, keeping its value, as F2 does', () => {
+			sheet().editCell('b', 'units');
+			fixture.detectChanges();
+
+			expect(cell(1, 1).getAttribute('tabindex')).toBe('0');
+			expect(editor()?.value).toBe('200');
+		});
+
+		it('waits for a row being added, then opens its first cell for writing', async () => {
+			document.body.appendChild(fixture.nativeElement);
+			sheet().editCell('d');
+			host.rows.update((rows) => [...rows, { id: 'd', product: '', units: null, price: null }]);
+			fixture.detectChanges();
+			await fixture.whenStable();
+
+			expect(cell(3, 0).getAttribute('tabindex')).toBe('0');
+			expect(editor()).not.toBeNull();
+			fixture.nativeElement.remove();
+		});
+
+		it('only puts the cursor on a cell that cannot be edited', () => {
+			sheet().editCell('a', 'total');
+			fixture.detectChanges();
+
+			expect(cell(0, 2).getAttribute('tabindex')).toBe('0');
+			expect(editor()).toBeNull();
+		});
+
+		it('leaves a yes/no cell as it is: it has no field, and opening it would turn it over', () => {
+			host.columns.update((columns) => [
+				...columns,
+				{ key: 'paid', header: 'Pagado', kind: 'boolean', cell: () => ({ value: 1, editable: true }) }
+			]);
+			fixture.detectChanges();
+			sheet().editCell('a', 'paid');
+			fixture.detectChanges();
+
+			expect(cell(0, 3).getAttribute('tabindex')).toBe('0');
+			expect(host.commits).toHaveLength(0);
+		});
 	});
 
 	describe('filling down from the keyboard', () => {
@@ -3036,6 +3077,63 @@ describe('HubSpreadsheetComponent', () => {
 				?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 			drawn.detectChanges();
 
+			expect(drawn.nativeElement.querySelector('[data-cell="0-1"] .hub-spreadsheet__editor')).not.toBeNull();
+		});
+
+		it('opens a cell that is also typed into with Alt+Enter, and keeps Enter for its field', async () => {
+			@Component({
+				standalone: true,
+				imports: [HubSpreadsheetComponent, HubSpreadsheetCellDirective],
+				template: `
+					<hub-spreadsheet [rows]="rows()" [columns]="columns" [rowKey]="rowKey" (opened)="opened.push($event)">
+						<ng-template hubSpreadsheetCell="units" hubSpreadsheetCellAction="Ver tramos" let-value let-open="open">
+							<span>{{ value }}</span>
+							<button type="button" class="way-in" (click)="open()">›</button>
+						</ng-template>
+					</hub-spreadsheet>
+				`
+			})
+			class EditableOpensHost {
+				readonly rows = signal<Line[]>(lines());
+				readonly rowKey = (row: Line) => row.id;
+				readonly opened: HubSpreadsheetCellRef<Line>[] = [];
+				readonly columns: HubSpreadsheetColumn<Line>[] = [
+					{ key: 'product', header: 'Producto', cell: (row) => ({ value: row.product }) },
+					{
+						key: 'units',
+						header: 'Unidades',
+						kind: 'number' as const,
+						cell: (row) => ({ value: row.units, editable: true })
+					}
+				];
+			}
+
+			await TestBed.resetTestingModule()
+				.configureTestingModule({ imports: [EditableOpensHost], providers: [provideHubTranslation()] })
+				.compileComponents();
+
+			const drawn = TestBed.createComponent(EditableOpensHost);
+			drawn.detectChanges();
+
+			const target: HTMLElement = drawn.nativeElement.querySelector('[data-cell="0-1"]');
+			const table: HTMLElement = drawn.nativeElement.querySelector('.hub-spreadsheet__table');
+
+			target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+			target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			drawn.detectChanges();
+
+			expect(target.getAttribute('aria-keyshortcuts')).toBe('Alt+Enter');
+
+			table.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', altKey: true, bubbles: true, cancelable: true }));
+			drawn.detectChanges();
+
+			expect(drawn.componentInstance.opened.at(-1)).toMatchObject({ coords: { row: 0, col: 1 } });
+			expect(drawn.nativeElement.querySelector('.hub-spreadsheet__editor')).toBeNull();
+
+			table.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+			drawn.detectChanges();
+
+			expect(drawn.componentInstance.opened).toHaveLength(1);
 			expect(drawn.nativeElement.querySelector('[data-cell="0-1"] .hub-spreadsheet__editor')).not.toBeNull();
 		});
 

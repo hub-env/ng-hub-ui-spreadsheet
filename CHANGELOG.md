@@ -1,5 +1,18 @@
 # Changelog
 
+## [22.12.0] - 2026-11-04
+
+### Added
+
+- **`editCell(rowKey, column?)`** opens a cell's editor from the host's code, keeping its value, as
+  `F2` does. It waits for a row that has not reached the sheet yet, as `focusCell` does, so a button
+  that adds a note leaves the reader typing in it. On a cell that cannot be edited it only puts the
+  cursor there, and a yes/no cell is not turned over.
+- **`Alt+Enter` opens a cell that is also typed into.** A templated cell marked with
+  `hubSpreadsheetCellAction` keeps `Enter` for its field when it is editable; `Alt+Enter`
+  (`Option+Enter` on a Mac) now reports `opened` for it, the key a spreadsheet uses to follow a
+  cell's link. The cell announces it through `aria-keyshortcuts`.
+
 ## [22.11.0] - 2026-11-04
 
 ### Added

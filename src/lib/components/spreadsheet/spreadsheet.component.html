@@ -159,9 +159,7 @@
 								[attr.aria-colspan]="colSpanOf(rowIndex, colIndex)"
 								[attr.aria-selected]="isSelected(rowIndex, colIndex)"
 								[attr.aria-readonly]="!editable || null"
-								[attr.aria-keyshortcuts]="
-									opensAppendList(colIndex) && appendOf(rowIndex, colIndex)?.editable ? 'Alt+ArrowDown' : null
-								"
+								[attr.aria-keyshortcuts]="keyShortcutsOf(rowIndex, colIndex)"
 								[attr.aria-invalid]="(isActive(rowIndex, colIndex) && invalid()) || error ? true : null"
 								[attr.aria-busy]="state === 'saving' || null"
 								[hubTooltip]="error ?? cell.title ?? ''"

@@ -238,8 +238,8 @@ que es lo que le guarda el `Intro` a la celda:
 ```
 
 `open()` se le entrega a la plantilla y avisa de la intención por `opened`; la hoja no abre nada por
-su cuenta. Una celda editable conserva `Intro` para editar, y el portapapeles sigue llevando el
-valor, no el dibujo.
+su cuenta. Una celda editable conserva `Intro` para editar y se abre con `Alt+Intro` (`Option+Intro`
+en Mac), y el portapapeles sigue llevando el valor, no el dibujo.
 
 `hubSpreadsheetCellAction` también puede ser **una función de la fila**, para una columna donde solo
 abren algunas celdas — un producto cuya fila plegada abre sus variantes mientras la suya solo se lee:
@@ -293,6 +293,7 @@ Para una celda que abre el detalle propio de la fila, pon el detalle en una plan
 | Cualquier carácter imprimible    | Sustituir la celda y empezar a editar                                                               |
 | `F2`, `Intro`                    | Editar conservando el valor                                                                         |
 | `Alt` + `Abajo`                  | Abrir una celda que lleva una lista o una fecha, o el append de una columna number, currency o text |
+| `Alt` + `Intro`                  | Abrir aquello a lo que apunta una celda en la que también se escribe (`hubSpreadsheetCellAction`)   |
 | `Alt+Mayús` + `Arriba` / `Abajo` | Mover la fila un puesto, con `reorderableRows`, y decir adónde fue                                  |
 | `Intro` / `Tab` al editar        | Confirmar y bajar / avanzar                                                                         |
 | `Escape` / `Tab` en tu editor    | Cerrarlo como estaba / confirmar lo que guarda y avanzar                                            |
@@ -384,6 +385,12 @@ protected addLine(): void {
 }
 ```
 
+`editCell` hace lo mismo y además abre el editor de la celda conservando su valor, para una línea que se escribe nada más añadirla, como una nota:
+
+```typescript
+this.sheet().editCell(id, 'description');
+```
+
 ## 📖 Referencia de la API
 
 ### Entradas
@@ -451,6 +458,7 @@ protected addLine(): void {
 | Método                       | Qué hace                                                                                                             |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `focusCell(rowKey, column?)` | Pone el cursor y el teclado en una celda, y espera a una fila que todavía está en camino; ver el apartado de arriba. |
+| `editCell(rowKey, column?)`  | Abre el editor de una celda desde el código conservando su valor, como `F2`; espera a la fila igual que `focusCell`. |
 
 ### Ayudantes
 

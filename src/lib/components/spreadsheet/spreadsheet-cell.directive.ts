@@ -73,8 +73,10 @@ export class HubSpreadsheetCellDirective<TRow = unknown> {
 	 *
 	 * Either way the sheet keeps `Enter` for a cell that opens instead of opening an editor the
 	 * cell has not got, and reports the press through `opened`; the template draws the way in
-	 * itself — a link, a button — and calls `open()` from its context. Left out, the cell is only
-	 * read or typed into, and `Enter` does what the sheet would have done on its own.
+	 * itself — a link, a button — and calls `open()` from its context. A cell that is also typed
+	 * into keeps `Enter` for its field and opens with `Alt+Enter` (`Option+Enter` on a Mac). Left
+	 * out, the cell is only read or typed into, and `Enter` does what the sheet would have done on
+	 * its own.
 	 */
 	readonly action = input<string | ((row: TRow) => boolean)>('', { alias: 'hubSpreadsheetCellAction' });
 

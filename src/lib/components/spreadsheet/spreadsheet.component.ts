@@ -618,7 +618,9 @@ export class HubSpreadsheetComponent<TRow> {
 	/** Whether the Escape now travelling found a list open inside a supplied editor. */
 	#popupWasOpen = false;
 	/** A cell the host asked the cursor onto, kept until its row is in the sheet. */
-	readonly #pendingFocus = signal<{ readonly rowKey: string; readonly column?: string } | null>(null);
+	readonly #pendingFocus = signal<{ readonly rowKey: string; readonly column?: string; readonly edit?: boolean } | null>(
+		null
+	);
 	/** The last keyboard move: the order it was reported against, and the order it asked for. */
 	#pendingMove: { readonly against: readonly string[]; readonly order: string[] } | null = null;
 	/** What the live region last said, for what is otherwise only seen, such as a row moved. */
@@ -1957,6 +1959,11 @@ export class HubSpreadsheetComponent<TRow> {
 			if (col >= 0) {
 				this.leaveEdit();
 				this.moveTo({ row, col }, false);
+
+				// A yes/no cell has no field: opening it would turn it over.
+				if (pending.edit && this.columns()[col].kind !== 'boolean') {
+					this.startEdit(undefined);
+				}
 			}
 		});
 	});
@@ -2512,6 +2519,20 @@ export class HubSpreadsheetComponent<TRow> {
 		this.#pendingFocus.set({ rowKey, column });
 	}
 
+	/**
+	 * Opens a cell's editor from the host's code, keeping its value, as `F2` does.
+	 *
+	 * For a row the host adds to be written in straight away, such as a note line: the reader lands
+	 * in the field rather than on the cell. It waits for the row as {@link focusCell} does, and on a
+	 * cell that cannot be edited it only puts the cursor there.
+	 *
+	 * @param rowKey The row, by the key `rowKey` gives it.
+	 * @param column The column alias; the row's first cell the reader can type into when left out.
+	 */
+	editCell(rowKey: string, column?: string): void {
+		this.#pendingFocus.set({ rowKey, column, edit: true });
+	}
+
 	protected onKeydown(event: KeyboardEvent): void {
 		const active = this.active();
 
@@ -2549,6 +2570,15 @@ export class HubSpreadsheetComponent<TRow> {
 		if (this.fillHandle() && !this.readonly() && isFillDownKey(event)) {
 			event.preventDefault();
 			this.fillDown();
+
+			return;
+		}
+
+		// Enter belongs to the editor, so a cell that can be typed into and also opens onto something
+		// takes Alt+Enter for the second, the key a spreadsheet uses to follow a cell's link.
+		if (isOpenKey(event) && this.cellOpens(active.row, active.col)) {
+			event.preventDefault();
+			this.openCell(active.row, active.col);
 
 			return;
 		}
@@ -3156,6 +3186,19 @@ export class HubSpreadsheetComponent<TRow> {
 
 		this.forgetDrafts(gridRangeCells(range));
 		this.filled.emit({ cells, range, skipped, rejected: 0 });
+	}
+
+	/**
+	 * The keys a cell answers beyond the usual ones, for `aria-keyshortcuts`: `Alt+Enter` on a cell
+	 * that is typed into and also opens onto something, `Alt+ArrowDown` where it opens an append.
+	 */
+	protected keyShortcutsOf(row: number, col: number): string | null {
+		const keys = [
+			this.canEdit(row, col) && this.cellOpens(row, col) ? 'Alt+Enter' : '',
+			this.opensAppendList(col) && this.appendOf(row, col)?.editable ? 'Alt+ArrowDown' : ''
+		].filter(Boolean);
+
+		return keys.length ? keys.join(' ') : null;
 	}
 
 	/** The appended value of a cell, or null when its column has none. */
@@ -4311,6 +4354,11 @@ function isComposing(event: KeyboardEvent): boolean {
 /** `Ctrl+D`, or `Cmd+D` on a Mac: fill down, as in every spreadsheet. */
 function isFillDownKey(event: KeyboardEvent): boolean {
 	return (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'd';
+}
+
+/** `Alt+Enter` (`Option+Enter` on a Mac): open what a cell points at. */
+function isOpenKey(event: KeyboardEvent): boolean {
+	return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.key === 'Enter';
 }
 
 /** `Alt+Shift` with the up or down arrow, the keyboard's way of moving a row. */
