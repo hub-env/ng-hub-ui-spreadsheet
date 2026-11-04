@@ -2,6 +2,11 @@
 
 This file documents breaking changes and migration steps for `ng-hub-ui-spreadsheet`.
 
+## [22.12.2] - 2026-11-04
+
+No breaking changes. Only the text a number is written as changes, to 15 significant digits; the
+values a sheet stores and reports stay as they were.
+
 ## [22.12.1] - 2026-11-04
 
 No breaking changes. An end-aligned list column now keeps a lane for its caret; a project that

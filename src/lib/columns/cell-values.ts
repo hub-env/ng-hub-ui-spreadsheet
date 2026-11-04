@@ -1,4 +1,4 @@
-import { parseDecimal } from '../clipboard/clipboard-table';
+import { numberText, parseDecimal } from '../clipboard/clipboard-table';
 import {
 	HubSpreadsheetAppend,
 	HubSpreadsheetColumn,
@@ -45,7 +45,7 @@ export function displayValue<TRow>(value: HubSpreadsheetValue, column: HubSpread
 			// width worth arguing about.
 			return isTruthy(value) ? '✓' : '';
 		default:
-			return String(value);
+			return typeof value === 'number' ? numberText(value) : String(value);
 	}
 }
 

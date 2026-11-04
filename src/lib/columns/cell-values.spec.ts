@@ -17,6 +17,12 @@ describe('displayValue', () => {
 		expect(displayValue(42, column({ kind: 'number' }))).toBe('42');
 	});
 
+	it('shows a figure to 15 significant digits, so arithmetic noise reads as a spreadsheet shows it', () => {
+		expect(displayValue(3260.4 - 3120.8, column({ kind: 'number' }))).toBe('139.6');
+		expect(displayValue(0.1 + 0.2, column({ kind: 'currency' }))).toBe('0.3');
+		expect(displayValue(1240.5, column({ kind: 'number' }))).toBe('1240.5');
+	});
+
 	it('shows an empty cell as nothing at all', () => {
 		expect(displayValue(null, column({}))).toBe('');
 		expect(displayValue(null, column({ kind: 'select', options }))).toBe('');

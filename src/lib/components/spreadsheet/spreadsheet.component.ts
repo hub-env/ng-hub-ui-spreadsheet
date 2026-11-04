@@ -73,7 +73,13 @@ import { columnLabel, formatCoordinate } from '../../formulas/formula-coordinate
 import { HubSpreadsheetControlDirective } from '../../editors/editor-adapter.directive';
 import { HUB_SPREADSHEET_CONTROLS } from '../../editors/editor-adapter.token';
 import { HubSpreadsheetControlConfig } from '../../editors/editor-adapter.types';
-import { HubClipboardCell, parseClipboardTable, parseDecimal, serialiseClipboardTable } from '../../clipboard/clipboard-table';
+import {
+	HubClipboardCell,
+	numberText,
+	parseClipboardTable,
+	parseDecimal,
+	serialiseClipboardTable
+} from '../../clipboard/clipboard-table';
 import { HubSpreadsheetMergeRequest, mergeRequestFor, spansWithin } from '../../models/spreadsheet-spans';
 import {
 	HubSpreadsheetDeleteRequest,
@@ -3421,7 +3427,7 @@ export class HubSpreadsheetComponent<TRow> {
 			return value;
 		}
 
-		const main = typeof value === 'number' ? String(value).replace('.', this.decimalMark()) : value;
+		const main = typeof value === 'number' ? numberText(value).replace('.', this.decimalMark()) : value;
 
 		return `${main} ${label}`;
 	}
@@ -4164,7 +4170,7 @@ export class HubSpreadsheetComponent<TRow> {
 			return '';
 		}
 
-		return typeof cell.value === 'number' ? String(cell.value).replace('.', this.decimalMark()) : String(cell.value);
+		return typeof cell.value === 'number' ? numberText(cell.value).replace('.', this.decimalMark()) : String(cell.value);
 	}
 
 	private moveTo(rawTarget: HubGridCoords, extend: boolean, keepExtras = false): void {

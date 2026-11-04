@@ -103,6 +103,16 @@ export function serialiseClipboardTable(rows: readonly (readonly HubSpreadsheetV
 	return { text, html };
 }
 
+/**
+ * A number written the way a spreadsheet shows it: to 15 significant digits, the precision a
+ * double holds reliably. Arithmetic leaves binary noise behind (3260.4 − 3120.8 is
+ * 139.59999999999991), and Excel and Google Sheets show 139.6. Only the text changes; the value
+ * stays as it was.
+ */
+export function numberText(value: number): string {
+	return String(Number(value.toPrecision(15)));
+}
+
 /** One cell as tab-separated text, quoted only when it would otherwise break the shape. */
 function toDelimitedCell(value: HubSpreadsheetValue): string {
 	if (value === null) {
@@ -110,7 +120,7 @@ function toDelimitedCell(value: HubSpreadsheetValue): string {
 	}
 
 	if (typeof value === 'number') {
-		return String(value);
+		return numberText(value);
 	}
 
 	return /[\t\n\r"]/.test(value) ? `"${value.split('"').join('""')}"` : value;
@@ -123,7 +133,7 @@ function toHtmlCell(value: HubSpreadsheetValue): string {
 	}
 
 	if (typeof value === 'number') {
-		return `<td x:num="${value}">${value}</td>`;
+		return `<td x:num="${value}">${numberText(value)}</td>`;
 	}
 
 	return `<td>${escapeHtml(value)}</td>`;

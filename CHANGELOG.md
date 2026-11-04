@@ -1,5 +1,16 @@
 # Changelog
 
+## [22.12.2] - 2026-11-04
+
+### Fixed
+
+- **A figure left noisy by arithmetic reads as a spreadsheet shows it.** A value computed in a
+  `cell` function, such as `february - january`, could show its binary noise: 3260.4 − 3120.8
+  appeared as `139.5999999999999`. Numbers are now written to 15 significant digits, the precision
+  a double holds reliably and the one Excel and Google Sheets show, in the cell, in the text a copy
+  writes and in the editor that opens on them. The stored value does not change, and the HTML
+  flavour of a copy still carries it exactly.
+
 ## [22.12.1] - 2026-11-04
 
 ### Fixed

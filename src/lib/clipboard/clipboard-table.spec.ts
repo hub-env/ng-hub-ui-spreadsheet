@@ -167,6 +167,15 @@ describe('serialiseClipboardTable', () => {
 		expect(serialiseClipboardTable([[1234.56]]).text).toBe('1234.56');
 	});
 
+	it('writes a figure to 15 significant digits, and keeps the exact one in the HTML flavour', () => {
+		const noisy = 3260.4 - 3120.8;
+		const { text, html } = serialiseClipboardTable([[noisy]]);
+
+		expect(text).toBe('139.6');
+		expect(html).toContain(`x:num="${noisy}"`);
+		expect(html).toContain('>139.6</td>');
+	});
+
 	it('also emits an HTML flavour carrying the raw numbers', () => {
 		const { html } = serialiseClipboardTable([[1234.56, 'texto']]);
 

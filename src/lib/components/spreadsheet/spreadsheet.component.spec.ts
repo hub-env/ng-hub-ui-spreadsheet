@@ -537,6 +537,18 @@ describe('HubSpreadsheetComponent', () => {
 			expect(editor()?.value).toBe('Tornillo');
 		});
 
+		it('opens a figure left noisy by arithmetic the way the cell shows it', () => {
+			host.rows.update((rows) => rows.map((row, index) => (index === 0 ? { ...row, units: 0.1 + 0.2 } : row)));
+			fixture.detectChanges();
+
+			expect(cell(0, 1).textContent?.trim()).toBe('0.3');
+
+			click(0, 1);
+			press('F2');
+
+			expect(editor()?.value).toMatch(/^0[.,]3$/);
+		});
+
 		it('shows the column letters and the row numbers only while a formula is written', () => {
 			host.formulas.set(true);
 			fixture.detectChanges();
