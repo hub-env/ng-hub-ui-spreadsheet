@@ -1662,7 +1662,12 @@ describe('HubSpreadsheetComponent', () => {
 			imports: [HubSpreadsheetComponent, HubSpreadsheetHeaderDirective],
 			template: `
 				<hub-spreadsheet [rows]="rows()" [columns]="columns" [rowKey]="rowKey" reorderableColumns>
-					<ng-template hubSpreadsheetHeader="product" [hubSpreadsheetHeaderRows]="rows()" let-column let-index="index">
+					<ng-template
+						hubSpreadsheetHeader="product"
+						[hubSpreadsheetHeaderRows]="rows()"
+						let-column
+						let-index="index"
+					>
 						<span class="title">{{ column.header }} #{{ index }}</span>
 						<button type="button" class="edit" (click)="edits.push(column.header)">Edit</button>
 					</ng-template>
@@ -1700,11 +1705,14 @@ describe('HubSpreadsheetComponent', () => {
 
 			const table: HTMLElement = drawn.nativeElement.querySelector('.hub-spreadsheet__table');
 
-			table.getBoundingClientRect = () => ({ top: 0, left: 0, right: 200, bottom: 120, width: 200, height: 120 }) as DOMRect;
-			drawn.nativeElement.querySelectorAll('.hub-spreadsheet__header[data-header]').forEach((th: HTMLElement, i: number) => {
-				Object.defineProperty(th, 'offsetLeft', { configurable: true, value: i * 100 });
-				Object.defineProperty(th, 'offsetWidth', { configurable: true, value: 100 });
-			});
+			table.getBoundingClientRect = () =>
+				({ top: 0, left: 0, right: 200, bottom: 120, width: 200, height: 120 }) as DOMRect;
+			drawn.nativeElement
+				.querySelectorAll('.hub-spreadsheet__header[data-header]')
+				.forEach((th: HTMLElement, i: number) => {
+					Object.defineProperty(th, 'offsetLeft', { configurable: true, value: i * 100 });
+					Object.defineProperty(th, 'offsetWidth', { configurable: true, value: 100 });
+				});
 		});
 
 		afterEach(() => {
