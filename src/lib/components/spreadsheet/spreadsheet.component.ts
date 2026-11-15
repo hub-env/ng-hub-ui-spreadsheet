@@ -60,6 +60,7 @@ import { locale as englishLabels } from '../../assets/i18n/en';
 import { appendColumn, appendLabel, displayValue, isTruthy, parseForColumn, splitAppend } from '../../columns/cell-values';
 import { HubSpreadsheetEditorContext, HubSpreadsheetEditorDirective } from './spreadsheet-editor.directive';
 import { HubSpreadsheetCellContext, HubSpreadsheetCellDirective } from './spreadsheet-cell.directive';
+import { HubSpreadsheetHeaderContext, HubSpreadsheetHeaderDirective } from './spreadsheet-header.directive';
 import { moveColumn, moveRow, resolveColumnWidth } from '../../columns/column-sizing';
 import { fillValues } from '../../fill/fill-series';
 import { frozenOffsets, isFrozenEdge } from './frozen-panes';
@@ -307,6 +308,8 @@ export class HubSpreadsheetComponent<TRow> {
 	protected readonly customEditors = contentChildren<HubSpreadsheetEditorDirective<TRow>>(HubSpreadsheetEditorDirective);
 	/** Cell templates supplied by the host, for what a column shows while it is not being edited. */
 	protected readonly customCells = contentChildren<HubSpreadsheetCellDirective<TRow>>(HubSpreadsheetCellDirective);
+	/** Header templates supplied by the host, for what a column's header draws as its title. */
+	protected readonly customHeaders = contentChildren<HubSpreadsheetHeaderDirective<TRow>>(HubSpreadsheetHeaderDirective);
 
 	/** Aliases retired by earlier deletions, so a new column never reuses one. */
 	readonly retiredColumnKeys = input<readonly string[]>([]);
@@ -1272,6 +1275,16 @@ export class HubSpreadsheetComponent<TRow> {
 	protected clearHover(): void {
 		this.hoveredRow.set(null);
 		this.hoveredColumn.set(null);
+	}
+
+	/** Starts a column drag from a header, unless the press landed on something clickable the host drew in it. */
+	protected startHeaderMove(event: PointerEvent, col: number): void {
+		// Something clickable in a header template keeps its press: a button is not a handle.
+		if ((event.target as Element | null)?.closest?.('button, a, input, select, textarea, [role="button"]')) {
+			return;
+		}
+
+		this.startMove(event, 'column', col);
 	}
 
 	/**
@@ -2322,6 +2335,20 @@ export class HubSpreadsheetComponent<TRow> {
 		const key = this.columns()[col]?.key;
 
 		return this.customCells().find((template) => template.column() === key);
+	}
+
+	/** The template this column draws its header title with, if the host supplied one. */
+	protected headerTemplateFor(col: number): HubSpreadsheetHeaderDirective<TRow> | undefined {
+		const key = this.columns()[col]?.key;
+
+		return this.customHeaders().find((template) => template.column() === key);
+	}
+
+	/** The context a header template is rendered with. */
+	protected headerContext(col: number): HubSpreadsheetHeaderContext<TRow> {
+		const column = this.columns()[col];
+
+		return { $implicit: column, index: col, key: column.key, header: column.header };
 	}
 
 	/** The context a cell template is rendered with. */

@@ -1,5 +1,18 @@
 # Changelog
 
+## [22.13.0] - 2026-11-15
+
+### Added
+
+- **A header of your own, per column.** `hubSpreadsheetHeader` is the sibling of
+  `hubSpreadsheetCell` for the header: the template replaces the title and subheader the header
+  draws and is handed the column, its `index`, its `key` and the plain `header`. The `<th>`, its
+  sizing, freezing, sticky position, aria and the check-all box stay the sheet's. A button, link or
+  field inside the template can be pressed without starting a column drag; a header with nothing
+  interactive in it stays draggable as before. `headerHidden` only silences the sheet's own title,
+  so a template is always shown. Typed with `hubSpreadsheetHeaderRows`, exported with
+  `HubSpreadsheetHeaderContext`.
+
 ## [22.12.2] - 2026-11-04
 
 ### Fixed

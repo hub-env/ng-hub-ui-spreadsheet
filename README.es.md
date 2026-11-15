@@ -591,6 +591,19 @@ plantilla al lado; una de lista o de fecha, la flecha que la abre.
 </ng-template>
 ```
 
+**Una cabecera propia.** `hubSpreadsheetHeader` sustituye lo que la cabecera de una columna dibuja
+como título y subtítulo; el `<th>`, su ancho, la inmovilización, la posición fija y la casilla de
+marcar todo siguen siendo de la hoja. La plantilla recibe la columna (`$implicit`), su `index`, su
+`key` y el `header` en texto. Un botón, un enlace o un campo dentro funciona como en cualquier otro
+sitio: pulsarlo nunca empieza a arrastrar la columna. `headerHidden` solo silencia el título de la
+hoja, así que una plantilla siempre se muestra.
+
+```html
+<ng-template hubSpreadsheetHeader="price" let-column>
+	{{ column.header }} <button type="button" (click)="editPrice()">Editar</button>
+</ng-template>
+```
+
 **Una columna, una plantilla.** `hubSpreadsheetEditor` nombra la columna por su alias y le pasa a
 la plantilla el valor, el par `commit` / `cancel` y `seed`: el carácter con el que el lector abrió
 la celda, que es lo que va en el buscador de un selector.

@@ -15,6 +15,7 @@ import { HubSpreadsheetMergeRequest } from '../../models/spreadsheet-spans';
 import { HubSpreadsheetComponent } from './spreadsheet.component';
 import { HubSpreadsheetEditorDirective } from './spreadsheet-editor.directive';
 import { HubSpreadsheetCellDirective } from './spreadsheet-cell.directive';
+import { HubSpreadsheetHeaderDirective } from './spreadsheet-header.directive';
 import { provideHubSpreadsheetControls } from '../../editors/editor-adapter.provider';
 import { HubSpreadsheetControlConfig, HubSpreadsheetControlsAdapter } from '../../editors/editor-adapter.types';
 
@@ -1652,6 +1653,91 @@ describe('HubSpreadsheetComponent', () => {
 
 			expect(drawn.nativeElement.querySelector('[data-cell="1-0"] .mark').getAttribute('data-active')).toBe('true');
 			expect(drawn.nativeElement.querySelector('[data-cell="0-0"] .mark').getAttribute('data-active')).toBe('false');
+		});
+	});
+
+	describe('a column that draws its own header', () => {
+		@Component({
+			standalone: true,
+			imports: [HubSpreadsheetComponent, HubSpreadsheetHeaderDirective],
+			template: `
+				<hub-spreadsheet [rows]="rows()" [columns]="columns" [rowKey]="rowKey" reorderableColumns>
+					<ng-template hubSpreadsheetHeader="product" [hubSpreadsheetHeaderRows]="rows()" let-column let-index="index">
+						<span class="title">{{ column.header }} #{{ index }}</span>
+						<button type="button" class="edit" (click)="edits.push(column.header)">Edit</button>
+					</ng-template>
+				</hub-spreadsheet>
+			`
+		})
+		class HeaderHost {
+			readonly rows = signal<Line[]>(lines());
+			readonly rowKey = (row: Line) => row.id;
+			edits: string[] = [];
+			readonly columns: HubSpreadsheetColumn<Line>[] = [
+				{ key: 'product', header: 'Producto', subheader: 'sub', cell: (row) => ({ value: row.product }) },
+				{ key: 'units', header: 'Unidades', subheader: 'u', cell: (row) => ({ value: row.units }) }
+			];
+		}
+
+		let drawn: ComponentFixture<HeaderHost>;
+
+		const pointerEvent = (type: string, x: number): Event =>
+			Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
+				clientX: x,
+				clientY: 10,
+				pointerId: 1,
+				button: 0
+			});
+
+		const headerOf = (index: number): HTMLElement => drawn.nativeElement.querySelector(`[data-header="${index}"]`);
+
+		beforeEach(async () => {
+			await TestBed.resetTestingModule()
+				.configureTestingModule({ imports: [HeaderHost], providers: [provideHubTranslation()] })
+				.compileComponents();
+			drawn = TestBed.createComponent(HeaderHost);
+			drawn.detectChanges();
+
+			const table: HTMLElement = drawn.nativeElement.querySelector('.hub-spreadsheet__table');
+
+			table.getBoundingClientRect = () => ({ top: 0, left: 0, right: 200, bottom: 120, width: 200, height: 120 }) as DOMRect;
+			drawn.nativeElement.querySelectorAll('.hub-spreadsheet__header[data-header]').forEach((th: HTMLElement, i: number) => {
+				Object.defineProperty(th, 'offsetLeft', { configurable: true, value: i * 100 });
+				Object.defineProperty(th, 'offsetWidth', { configurable: true, value: 100 });
+			});
+		});
+
+		afterEach(() => {
+			window.dispatchEvent(pointerEvent('pointerup', 0));
+		});
+
+		it('draws the template with its context in place of the title and subheader', () => {
+			expect(headerOf(0).querySelector('.title')?.textContent?.trim()).toBe('Producto #0');
+			expect(headerOf(0).querySelector('.hub-spreadsheet__subheader')).toBeNull();
+			expect(headerOf(0).querySelector('.hub-spreadsheet__header-text--hidden')).toBeNull();
+		});
+
+		it('keeps the plain header, with its subheader, on a column without a template', () => {
+			expect(headerOf(1).textContent).toContain('Unidades');
+			expect(headerOf(1).querySelector('.hub-spreadsheet__subheader')?.textContent).toBe('u');
+		});
+
+		it('fires the handler of a button inside it without starting a column move', () => {
+			const button: HTMLElement = headerOf(0).querySelector('.edit')!;
+
+			button.dispatchEvent(pointerEvent('pointerdown', 50));
+			window.dispatchEvent(pointerEvent('pointermove', 170));
+			button.click();
+
+			expect(drawn.componentInstance.edits).toEqual(['Producto']);
+			expect(document.querySelector('.hub-drag-ghost')).toBeNull();
+		});
+
+		it('still drags the header from the rest of the template', () => {
+			headerOf(0).querySelector('.title')!.dispatchEvent(pointerEvent('pointerdown', 50));
+			window.dispatchEvent(pointerEvent('pointermove', 170));
+
+			expect(document.querySelector('.hub-drag-ghost')).not.toBeNull();
 		});
 	});
 

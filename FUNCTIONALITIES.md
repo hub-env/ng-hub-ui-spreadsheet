@@ -53,6 +53,7 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 |                   | Keys typed into it, or into the open row, are left to it                                       |     ✅      |       ✅        |
 |                   | It closes on `Escape`, on `Tab` and on leaving it (`draft`)                                    |     ✅      |       ✅        |
 |                   | Cells drawn by the host per column (`hubSpreadsheetCell`)                                      |     ✅      |       ✅        |
+|                   | Header title drawn by the host per column (`hubSpreadsheetHeader`)                            |     ✅      |       ✅        |
 |                   | …keeping the box of a yes/no column and the arrow of a list or date                            |     ✅      |       ✅        |
 |                   | A box in a yes/no column's header that ticks every row (`checkAll`)                            |     ✅      |       ✅        |
 |                   | Control adapter for every list column (`provideHubSpreadsheetControls`)                        |     ✅      |       ✅        |

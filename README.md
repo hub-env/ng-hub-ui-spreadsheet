@@ -589,6 +589,18 @@ beside it, and a list or date column the arrow that opens it.
 </ng-template>
 ```
 
+**A header of your own.** `hubSpreadsheetHeader` replaces what a column's header draws as its title
+and subheader; the `<th>` itself, its width, freezing, sticky position and the check-all box stay the
+sheet's. The template gets the column (`$implicit`), its `index`, its `key` and the plain `header`.
+A button, link or field inside it works as anywhere else: pressing it never starts dragging the
+column. `headerHidden` only silences the sheet's own title, so a template is always shown.
+
+```html
+<ng-template hubSpreadsheetHeader="price" let-column>
+	{{ column.header }} <button type="button" (click)="editPrice()">Edit</button>
+</ng-template>
+```
+
 **One column, one template.** `hubSpreadsheetEditor` names the column by its alias and hands the
 template the value, a `commit` / `cancel` pair and `seed` — the character the reader opened the
 cell with, which belongs in a picker's search box.

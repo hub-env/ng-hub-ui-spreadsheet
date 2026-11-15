@@ -55,13 +55,21 @@
 						[class.hub-spreadsheet__move-source]="isMoveSource('column', columnIndex)"
 						[class.hub-spreadsheet__move-back]="moveShift('column', columnIndex) === 'back'"
 						[class.hub-spreadsheet__move-forward]="moveShift('column', columnIndex) === 'forward'"
-						(pointerdown)="startMove($event, 'column', columnIndex)"
+						(pointerdown)="startHeaderMove($event, columnIndex)"
 						(mouseenter)="hoveredColumn.set(columnIndex); hoveredRow.set(null)"
 						[attr.aria-colindex]="columnIndex + 1"
 					>
-						<span [class.hub-spreadsheet__header-text--hidden]="column.headerHidden">
-							{{ column.header }}
-						</span>
+						@let ownHeader = headerTemplateFor(columnIndex);
+						@if (ownHeader) {
+							<ng-container
+								[ngTemplateOutlet]="ownHeader.template"
+								[ngTemplateOutletContext]="headerContext(columnIndex)"
+							/>
+						} @else {
+							<span [class.hub-spreadsheet__header-text--hidden]="column.headerHidden">
+								{{ column.header }}
+							</span>
+						}
 
 						<!-- Ticks or clears the whole column. Its pointer press is its own, so it never
 						starts dragging the header it sits in. -->
@@ -79,7 +87,7 @@
 							/>
 						}
 
-						@if (column.subheader) {
+						@if (column.subheader && !ownHeader) {
 							<small class="hub-spreadsheet__subheader">{{ column.subheader }}</small>
 						}
 

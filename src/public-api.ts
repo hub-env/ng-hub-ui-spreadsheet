@@ -31,6 +31,8 @@ export { HubSpreadsheetComponent } from './lib/components/spreadsheet/spreadshee
 export { HubSpreadsheetEditorDirective } from './lib/components/spreadsheet/spreadsheet-editor.directive';
 export { HubSpreadsheetCellDirective } from './lib/components/spreadsheet/spreadsheet-cell.directive';
 export type { HubSpreadsheetCellContext } from './lib/components/spreadsheet/spreadsheet-cell.directive';
+export { HubSpreadsheetHeaderDirective } from './lib/components/spreadsheet/spreadsheet-header.directive';
+export type { HubSpreadsheetHeaderContext } from './lib/components/spreadsheet/spreadsheet-header.directive';
 export type { HubSpreadsheetEditorContext } from './lib/components/spreadsheet/spreadsheet-editor.directive';
 export { displayValue, isTruthy, optionFor, parseForColumn } from './lib/columns/cell-values';
 
