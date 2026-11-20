@@ -761,6 +761,10 @@ chain. Reach for it for what a table theme does not already cover, rather than t
 
 Full catalogue: [`docs/css-variables-reference.md`](./docs/css-variables-reference.md).
 
+## Glass
+
+Glass is switched on by the glass layer of `ng-hub-ui-ds`: put `[data-hub-glass]`, or `data-theme="glass"`, on an ancestor. The row-actions context menu and the formula suggestions list turn translucent, with the sheen and the light rim, and blur what is behind them. Nothing else in the sheet changes. Without the layer nothing changes: every value falls back to the opaque one it had before. The pointer light needs `provideHubGlassLight()` from `ng-hub-ui-utils`.
+
 ## ♿ Accessibility
 
 The sheet is a real `role="grid"`: cells carry `aria-colindex` and their rows `aria-rowindex`, `aria-selected` follows the range, `aria-readonly` marks what cannot be typed into, `aria-invalid` marks an editor or a cell holding something unreadable, and `aria-busy` marks a cell being saved. Focus roves: one cell is in the tab order, the arrows do the rest. A polite live region reads out what otherwise only shows, such as the place a row was moved to from the keyboard.

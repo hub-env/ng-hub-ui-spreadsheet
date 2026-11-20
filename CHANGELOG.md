@@ -1,5 +1,14 @@
 # Changelog
 
+## [22.14.0] - 2026-11-20
+
+### Added
+
+- **The context menu and the formula suggestions follow the glass layer of `ng-hub-ui-ds`.** Under an
+  ancestor with `[data-hub-glass]` or `data-theme="glass"` the row-actions context menu and the formula
+  suggestions list turn translucent and blur what is behind them, with the sheen and the light rim.
+  Nothing else in the sheet changes. Without the layer both paint exactly as before.
+
 ## [22.13.0] - 2026-11-15
 
 ### Added

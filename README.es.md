@@ -768,6 +768,10 @@ por la cadena. Úsalo para lo que un tema de tabla no cubra ya, no para repetirl
 
 Catálogo completo: [`docs/css-variables-reference.md`](./docs/css-variables-reference.md).
 
+## Cristal
+
+El cristal lo activa la capa de cristal de `ng-hub-ui-ds`: pon `[data-hub-glass]`, o `data-theme="glass"`, en un ancestro. El menú contextual de acciones de fila y la lista de sugerencias de fórmulas se vuelven translúcidos, con el brillo y el filo de luz, y desenfocan lo que hay detrás. Nada más de la hoja cambia. Sin la capa no cambia nada: cada valor vuelve al opaco que tenía antes. La luz del puntero necesita `provideHubGlassLight()` de `ng-hub-ui-utils`.
+
 ## ♿ Accesibilidad
 
 La hoja es un `role="grid"` de verdad: las celdas llevan `aria-colindex` y sus filas `aria-rowindex`, `aria-selected` sigue al rango, `aria-readonly` marca lo que no se puede escribir, `aria-invalid` marca un editor o una celda con algo ilegible dentro, y `aria-busy` marca una celda guardándose. El foco viaja: una sola celda está en el orden de tabulación y las flechas hacen el resto. Una región viva educada lee en voz alta lo que de otro modo solo se ve, como el puesto al que se movió una fila con el teclado.

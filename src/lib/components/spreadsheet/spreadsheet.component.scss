@@ -1312,9 +1312,14 @@ $append-gap: var(--hub-spreadsheet-append-gap, 0.25em);
 	padding-block: 0.25rem;
 	border: #{$border-width} solid #{$menu-border-color};
 	border-radius: #{$menu-radius};
-	background: #{$menu-bg};
+	background-color: color-mix(in srgb, #{$menu-bg} var(--hub-sys-glass-opacity, 100%), transparent);
+	background-image: var(--hub-sys-glass-sheen, none);
+	-webkit-backdrop-filter: var(--hub-sys-glass-filter, none);
+	backdrop-filter: var(--hub-sys-glass-filter, none);
 	color: #{$menu-color};
-	box-shadow: #{$menu-shadow};
+	box-shadow:
+		var(--hub-sys-glass-rim, 0 0 #0000),
+		#{$menu-shadow};
 }
 
 .hub-spreadsheet__menu-item {
@@ -1350,8 +1355,13 @@ $append-gap: var(--hub-spreadsheet-append-gap, 0.25em);
 	overflow-y: auto;
 	border: #{$border-width} solid #{$suggestions-border-color};
 	border-radius: #{$border-radius};
-	background: #{$suggestions-bg};
-	box-shadow: #{$menu-shadow};
+	background-color: color-mix(in srgb, #{$suggestions-bg} var(--hub-sys-glass-opacity, 100%), transparent);
+	background-image: var(--hub-sys-glass-sheen, none);
+	-webkit-backdrop-filter: var(--hub-sys-glass-filter, none);
+	backdrop-filter: var(--hub-sys-glass-filter, none);
+	box-shadow:
+		var(--hub-sys-glass-rim, 0 0 #0000),
+		#{$menu-shadow};
 }
 
 .hub-spreadsheet__suggestion {

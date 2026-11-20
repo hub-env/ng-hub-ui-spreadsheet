@@ -603,7 +603,7 @@ clickable to write its alias into the formula. -->
 	it was never seen at all. The position is the component's; these are the looks. Hidden from
 	assistive technology: the field owns the conversation. -->
 	<div
-		class="hub-spreadsheet__suggestions"
+		class="hub-spreadsheet__suggestions hub-glass-surface"
 		role="presentation"
 		aria-hidden="true"
 		[style.inset-inline-start.px]="suggestionsAt()?.x"
@@ -632,7 +632,7 @@ clickable to write its alias into the formula. -->
 	<!-- Positioned against the host, which is the sheet's own corner, so the menu travels with a
 	scrolled page and never has to be repositioned on scroll. -->
 	<div
-		class="hub-spreadsheet__menu"
+		class="hub-spreadsheet__menu hub-glass-surface"
 		role="menu"
 		[attr.aria-label]="'ROW_ACTIONS' | hubTranslate"
 		[style.inset-inline-start.px]="at.x"

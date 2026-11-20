@@ -121,6 +121,7 @@ marked ❌ under **Example Covered** works but has no example yet; a row marked 
 |                   | Dark mode through the design system                                                            |     ✅      |       ❌        |
 |                   | Sass theming mixin (`hub-spreadsheet-theme`, 64 parameters)                                    |     ✅      |       ✅        |
 |                   | Themeable from an ancestor: `:root`, a wrapper class, a route                                  |     ✅      |       ✅        |
+|                   | Translucent context menu and formula suggestions with blur under the `ng-hub-ui-ds` glass layer |     ✅      |       ❌        |
 | **Forms**         | Per-cell errors from any source (`errors`)                                                     |     ✅      |       ✅        |
 |                   | Signal Forms field-tree mapping (`spreadsheetFieldErrors`)                                     |     ✅      |       ✅        |
 |                   | Form fields opened in a cell show their errors in a tooltip                                    |     ✅      |       ❌        |
